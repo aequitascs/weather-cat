@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Glowing Sphere</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.164.1/build/three.module.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main class="scene-shell">
+      <canvas id="glow-scene" aria-label="Interactive glowing sphere"></canvas>
+
+      <section class="controls" aria-label="Glow colour controls">
+        <div class="header-row">
+          <h1>1 Hour Forecast</h1>
+          <output id="hex-value" class="hex-value">#800080</output>
+        </div>
+
+        <dl class="weather-grid">
+          <div>
+            <dt>Scale min</dt>
+            <dd id="scale-min-value">--</dd>
+          </div>
+          <div>
+            <dt>Scale max</dt>
+            <dd id="scale-max-value">--</dd>
+          </div>
+          <div>
+            <dt>Expected</dt>
+            <dd id="expected-value">--</dd>
+          </div>
+          <div>
+            <dt>Interval</dt>
+            <dd id="interval-value">--</dd>
+          </div>
+          <div>
+            <dt>Next update</dt>
+            <dd id="next-update-value">--</dd>
+          </div>
+        </dl>
+
+        <p id="location-value" class="location-value">Locating...</p>
+      </section>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
