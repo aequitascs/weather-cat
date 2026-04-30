@@ -12,6 +12,16 @@ const values = {
 };
 
 const forecastRefreshIntervalMs = 5 * 60 * 1000;
+const defaultLocation = {
+  latitude: -33.9249,
+  longitude: 18.4241,
+  source: "default",
+};
+const locationSourceLabels = {
+  browser: "Browser",
+  ip: "Approximate",
+  default: "Default: Cape Town",
+};
 let scaleMinimum = 0;
 let scaleMaximum = 40;
 let expectedTemperature = 20;
@@ -156,7 +166,7 @@ async function setInitialTemperatureLevel() {
 }
 
 async function refreshWeatherFromCurrentLocation() {
-  const currentLocation = await getBrowserLocation();
+  const currentLocation = await getCurrentLocation();
   const locationChanged = !browserLocation || !locationsMatch(browserLocation, currentLocation);
   browserLocation = currentLocation;
   values.location.textContent = formatLocation(browserLocation);
@@ -276,6 +286,7 @@ function getBrowserLocation() {
         resolve({
           latitude: Number(position.coords.latitude.toFixed(4)),
           longitude: Number(position.coords.longitude.toFixed(4)),
+          source: "browser",
         });
       },
       (error) => reject(error),
@@ -288,10 +299,42 @@ function getBrowserLocation() {
   });
 }
 
-async function fetchJson(url) {
+async function getCurrentLocation() {
+  try {
+    return await getBrowserLocation();
+  } catch (error) {
+    logGeolocationProblem("browser", error);
+  }
+
+  try {
+    return await getIpLocation();
+  } catch (error) {
+    logGeolocationProblem("ip", error);
+  }
+
+  return { ...defaultLocation };
+}
+
+async function getIpLocation() {
+  const ipLocation = await fetchJson("https://ipapi.co/json/", "IP geolocation");
+  const latitude = Number(ipLocation.latitude);
+  const longitude = Number(ipLocation.longitude);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    throw new Error("IP geolocation response did not include latitude and longitude");
+  }
+
+  return {
+    latitude: Number(latitude.toFixed(4)),
+    longitude: Number(longitude.toFixed(4)),
+    source: "ip",
+  };
+}
+
+async function fetchJson(url, serviceName = "Open-Meteo") {
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Open-Meteo returned ${response.status}`);
+    throw new Error(`${serviceName} returned ${response.status}`);
   }
 
   return response.json();
@@ -338,7 +381,8 @@ function formatPredictionInterval(startTime, timezoneAbbreviation) {
 function formatLocation(location) {
   const latitudeDirection = location.latitude >= 0 ? "N" : "S";
   const longitudeDirection = location.longitude >= 0 ? "E" : "W";
-  return `${Math.abs(location.latitude).toFixed(4)}°${latitudeDirection}, ${Math.abs(location.longitude).toFixed(4)}°${longitudeDirection}`;
+  const sourceLabel = locationSourceLabels[location.source] ?? "Location";
+  return `${sourceLabel}: ${Math.abs(location.latitude).toFixed(4)}°${latitudeDirection}, ${Math.abs(location.longitude).toFixed(4)}°${longitudeDirection}`;
 }
 
 function locationsMatch(firstLocation, secondLocation) {
@@ -346,6 +390,11 @@ function locationsMatch(firstLocation, secondLocation) {
     firstLocation.latitude === secondLocation.latitude &&
     firstLocation.longitude === secondLocation.longitude
   );
+}
+
+function logGeolocationProblem(method, error) {
+  const message = getLocationErrorMessage(error);
+  console.warn(`Geolocation ${method} failed: ${message}`);
 }
 
 function updateRefreshCountdown() {
