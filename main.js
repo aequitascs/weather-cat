@@ -147,14 +147,7 @@ setInterval(updateRefreshCountdown, 1000);
 
 async function setInitialTemperatureLevel() {
   try {
-    browserLocation = await getBrowserLocation();
-    values.location.textContent = formatLocation(browserLocation);
-
-    const historicalRange = await fetchTemperatureRange(browserLocation);
-
-    scaleMinimum = historicalRange.minimum;
-    scaleMaximum = historicalRange.maximum;
-    await refreshForecast();
+    await refreshWeatherFromCurrentLocation();
     scheduleForecastRefresh();
   } catch (error) {
     values.location.textContent = getLocationErrorMessage(error);
@@ -162,8 +155,23 @@ async function setInitialTemperatureLevel() {
   }
 }
 
-async function refreshForecast() {
-  const forecast = await fetchJson(getHourlyForecastUrl(browserLocation));
+async function refreshWeatherFromCurrentLocation() {
+  const currentLocation = await getBrowserLocation();
+  const locationChanged = !browserLocation || !locationsMatch(browserLocation, currentLocation);
+  browserLocation = currentLocation;
+  values.location.textContent = formatLocation(browserLocation);
+
+  if (locationChanged) {
+    const historicalRange = await fetchTemperatureRange(browserLocation);
+    scaleMinimum = historicalRange.minimum;
+    scaleMaximum = historicalRange.maximum;
+  }
+
+  await refreshForecast(browserLocation);
+}
+
+async function refreshForecast(location) {
+  const forecast = await fetchJson(getHourlyForecastUrl(location));
   const prediction = getTemperatureOneHourFromNow(forecast);
   if (typeof prediction?.temperature !== "number") {
     throw new Error("Open-Meteo response did not include an hourly temperature forecast");
@@ -184,7 +192,7 @@ function scheduleForecastRefresh() {
   clearInterval(forecastRefreshTimer);
   forecastRefreshTimer = setInterval(async () => {
     try {
-      await refreshForecast();
+      await refreshWeatherFromCurrentLocation();
     } catch (error) {
       nextForecastUpdateAt = Date.now() + forecastRefreshIntervalMs;
       updateRefreshCountdown();
@@ -273,7 +281,7 @@ function getBrowserLocation() {
       (error) => reject(error),
       {
         enableHighAccuracy: false,
-        maximumAge: 10 * 60 * 1000,
+        maximumAge: 0,
         timeout: 10000,
       },
     );
@@ -331,6 +339,13 @@ function formatLocation(location) {
   const latitudeDirection = location.latitude >= 0 ? "N" : "S";
   const longitudeDirection = location.longitude >= 0 ? "E" : "W";
   return `${Math.abs(location.latitude).toFixed(4)}°${latitudeDirection}, ${Math.abs(location.longitude).toFixed(4)}°${longitudeDirection}`;
+}
+
+function locationsMatch(firstLocation, secondLocation) {
+  return (
+    firstLocation.latitude === secondLocation.latitude &&
+    firstLocation.longitude === secondLocation.longitude
+  );
 }
 
 function updateRefreshCountdown() {
