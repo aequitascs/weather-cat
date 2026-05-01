@@ -158,13 +158,14 @@ function getWeatherGlowState() {
   const normalizedLevel = THREE.MathUtils.clamp(level, scaleMinimum, scaleMaximum);
   const scaleRange = scaleMaximum - scaleMinimum || 1;
   const temperatureLevel = (normalizedLevel - scaleMinimum) / scaleRange;
-  const verticalLevel = getRainVerticalLevel(rainProbability);
+  const blueLevel = getRainVerticalLevel(rainProbability);
+  const fadeLevel = blueLevel ** 2;
   const baseRed = Math.min(temperatureLevel * 2, 1);
   const baseGreen = Math.min((1 - temperatureLevel) * 2, 1);
   const color = new THREE.Color(
-    baseRed * (1 - verticalLevel),
-    baseGreen * (1 - verticalLevel),
-    verticalLevel,
+    baseRed * (1 - fadeLevel),
+    baseGreen * (1 - fadeLevel),
+    blueLevel,
   );
 
   return {
@@ -396,7 +397,7 @@ function getRainVerticalLevel(probability) {
     rainProbabilityMaximum,
   );
   return ((clampedProbability - rainProbabilityMinimum) /
-    (rainProbabilityMaximum - rainProbabilityMinimum)) ** 2;
+    (rainProbabilityMaximum - rainProbabilityMinimum));
 }
 
 function scheduleForecastRefresh() {
