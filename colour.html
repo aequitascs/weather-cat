@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Weather Cat Colour</title>
+    <link rel="icon" href="./favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./site.webmanifest" />
+    <meta name="theme-color" content="#62c9ed" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="colour-page">
+    <main class="colour-shell">
+      <section class="colour-panel" aria-labelledby="colour-title">
+        <div class="header-row">
+          <h1 id="colour-title">Colour</h1>
+          <a class="page-link" href="./index.html">Forecast</a>
+        </div>
+
+        <div class="colour-map-wrap">
+          <div class="colour-y-axis" aria-hidden="true">
+            <span>100</span>
+            <span>50</span>
+            <span>0</span>
+          </div>
+          <div>
+            <canvas
+              class="colour-map"
+              id="colour-map"
+              width="401"
+              height="401"
+              role="img"
+              aria-label="Calculated colour map: temperature from 0 to 40 on the horizontal axis and blue channel from 0 to 255 on the vertical axis"
+            ></canvas>
+            <div class="colour-x-axis" aria-hidden="true">
+              <span>0</span>
+              <span>20</span>
+              <span>40</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="./colour.js"></script>
+  </body>
+</html>
