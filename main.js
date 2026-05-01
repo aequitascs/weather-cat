@@ -23,6 +23,8 @@ const locationSourceLabels = {
   ip: "Approximate",
   default: "Default: Cape Town",
 };
+const rainProbabilityMinimum = 0;
+const rainProbabilityMaximum = 100;
 let scaleMinimum = 0;
 let scaleMaximum = 40;
 let expectedTemperature = 20;
@@ -129,10 +131,13 @@ function updateGlowColour() {
   const normalizedLevel = THREE.MathUtils.clamp(level, scaleMinimum, scaleMaximum);
   const scaleRange = scaleMaximum - scaleMinimum || 1;
   const temperatureLevel = (normalizedLevel - scaleMinimum) / scaleRange;
+  const verticalLevel = getRainVerticalLevel(rainProbability);
+  const baseRed = Math.min(temperatureLevel * 2, 1);
+  const baseGreen = Math.min((1 - temperatureLevel) * 2, 1);
   const color = new THREE.Color(
-    Math.min(temperatureLevel * 2, 1),
-    Math.min((1 - temperatureLevel) * 2, 1),
-    0,
+    baseRed * (1 - verticalLevel),
+    baseGreen * (1 - verticalLevel),
+    verticalLevel,
   );
   const hex = `#${color.getHexString()}`;
 
@@ -203,6 +208,20 @@ async function refreshForecast(location) {
   nextForecastUpdateAt = Date.now() + forecastRefreshIntervalMs;
   updateGlowColour();
   updateRefreshCountdown();
+}
+
+function getRainVerticalLevel(probability) {
+  if (typeof probability !== "number") {
+    return rainProbabilityMinimum;
+  }
+
+  const clampedProbability = THREE.MathUtils.clamp(
+    probability,
+    rainProbabilityMinimum,
+    rainProbabilityMaximum,
+  );
+  return ((clampedProbability - rainProbabilityMinimum) /
+    (rainProbabilityMaximum - rainProbabilityMinimum)) ** 2;
 }
 
 function scheduleForecastRefresh() {
