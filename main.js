@@ -14,17 +14,11 @@ const values = {
 };
 
 const forecastRefreshIntervalMs = 5 * 60 * 1000;
-const defaultLocation = {
-  latitude: -33.9249,
-  longitude: 18.4241,
-  source: "default",
-};
 const initialBrowserLocationTimeoutMs = 2000;
 const browserLocationTimeoutMs = 10000;
 const locationSourceLabels = {
   browser: "Browser",
   ip: "Approximate",
-  default: "Default: Cape Town",
 };
 const rainProbabilityMinimum = 0;
 const rainProbabilityMaximum = 100;
@@ -51,6 +45,13 @@ const renderedGlowState = {
   emissiveIntensity: 0,
   lightIntensity: 0,
 };
+
+class LocationUnavailableError extends Error {
+  constructor() {
+    super("Location unavailable");
+    this.name = "LocationUnavailableError";
+  }
+}
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x050609, 0.055);
@@ -182,6 +183,36 @@ function updateGlowColour() {
   document.documentElement.style.setProperty("--accent", hex);
 }
 
+function deactivateForecastGlow({ fade = true } = {}) {
+  clearInterval(forecastCycleTimer);
+  forecastPredictions = [];
+  forecastCycleSequenceIndex = 0;
+  expectedTemperature = 20;
+  rainProbability = null;
+  values.title.textContent = "Forecast";
+  values.hex.value = `#${new THREE.Color(offSphereColour).getHexString()}`;
+  values.scaleMin.textContent = "--";
+  values.scaleMax.textContent = "--";
+  values.expected.textContent = "--";
+  values.rain.textContent = "--";
+  values.interval.textContent = "--";
+  document.documentElement.style.setProperty("--accent", values.hex.value);
+
+  const offState = {
+    color: new THREE.Color(offSphereColour),
+    emissiveIntensity: 0,
+    lightIntensity: 0,
+  };
+
+  if (fade) {
+    startGlowTransition(offState);
+    return;
+  }
+
+  glowTransition = null;
+  applyGlowState(offState);
+}
+
 function startGlowTransition(targetState) {
   glowTransition = {
     startedAt: performance.now(),
@@ -272,10 +303,14 @@ async function setInitialTemperatureLevel() {
     await refreshWeatherFromCurrentLocation({
       browserLocationTimeoutMs: initialBrowserLocationTimeoutMs,
     });
-    scheduleForecastRefresh();
   } catch (error) {
+    deactivateForecastGlow({ fade: false });
+    nextForecastUpdateAt = Date.now() + forecastRefreshIntervalMs;
+    updateRefreshCountdown();
     values.location.textContent = getLocationErrorMessage(error);
     console.warn("Could not load local temperature scale from Open-Meteo.", error);
+  } finally {
+    scheduleForecastRefresh();
   }
 }
 
@@ -363,6 +398,10 @@ function scheduleForecastRefresh() {
     try {
       await refreshWeatherFromCurrentLocation();
     } catch (error) {
+      if (error instanceof LocationUnavailableError) {
+        deactivateForecastGlow();
+        values.location.textContent = getLocationErrorMessage(error);
+      }
       nextForecastUpdateAt = Date.now() + forecastRefreshIntervalMs;
       updateRefreshCountdown();
       console.warn("Could not refresh local temperature forecast from Open-Meteo.", error);
@@ -482,7 +521,7 @@ async function getCurrentLocation({ browserLocationTimeoutMs } = {}) {
     logGeolocationProblem("ip", error);
   }
 
-  return { ...defaultLocation };
+  throw new LocationUnavailableError();
 }
 
 async function getIpLocation() {
