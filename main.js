@@ -6,6 +6,7 @@ const values = {
   scaleMin: document.querySelector("#scale-min-value"),
   scaleMax: document.querySelector("#scale-max-value"),
   expected: document.querySelector("#expected-value"),
+  rain: document.querySelector("#rain-value"),
   interval: document.querySelector("#interval-value"),
   nextUpdate: document.querySelector("#next-update-value"),
   location: document.querySelector("#location-value"),
@@ -25,11 +26,10 @@ const locationSourceLabels = {
 let scaleMinimum = 0;
 let scaleMaximum = 40;
 let expectedTemperature = 20;
+let rainProbability = null;
 let browserLocation = null;
 let nextForecastUpdateAt = null;
 let forecastRefreshTimer = null;
-const blueGlow = new THREE.Color(0x0000ff);
-const redGlow = new THREE.Color(0xff0000);
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x050609, 0.055);
@@ -128,7 +128,12 @@ function updateGlowColour() {
   const level = expectedTemperature;
   const normalizedLevel = THREE.MathUtils.clamp(level, scaleMinimum, scaleMaximum);
   const scaleRange = scaleMaximum - scaleMinimum || 1;
-  const color = blueGlow.clone().lerp(redGlow, (normalizedLevel - scaleMinimum) / scaleRange);
+  const temperatureLevel = (normalizedLevel - scaleMinimum) / scaleRange;
+  const color = new THREE.Color(
+    Math.min(temperatureLevel * 2, 1),
+    Math.min((1 - temperatureLevel) * 2, 1),
+    0,
+  );
   const hex = `#${color.getHexString()}`;
 
   sphereMaterial.emissive.copy(color);
@@ -139,6 +144,7 @@ function updateGlowColour() {
   values.scaleMin.textContent = formatTemperatureWithUnit(scaleMinimum);
   values.scaleMax.textContent = formatTemperatureWithUnit(scaleMaximum);
   values.expected.textContent = formatTemperatureWithUnit(expectedTemperature);
+  values.rain.textContent = formatPercent(rainProbability);
   document.documentElement.style.setProperty("--accent", hex);
 }
 
@@ -192,6 +198,7 @@ async function refreshForecast(location) {
     scaleMinimum,
     scaleMaximum,
   );
+  rainProbability = prediction.rainProbability;
   values.interval.textContent = prediction.interval;
   nextForecastUpdateAt = Date.now() + forecastRefreshIntervalMs;
   updateGlowColour();
@@ -235,16 +242,18 @@ async function fetchTemperatureRange(location) {
 }
 
 function getHourlyForecastUrl(location) {
-  return `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&hourly=temperature_2m&forecast_hours=6&temperature_unit=celsius&timezone=auto`;
+  return `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&hourly=temperature_2m,precipitation_probability&forecast_hours=6&temperature_unit=celsius&timezone=auto`;
 }
 
 function getTemperatureOneHourFromNow(forecast) {
   const times = forecast.hourly?.time ?? [];
   const temperatures = forecast.hourly?.temperature_2m ?? [];
+  const rainProbabilities = forecast.hourly?.precipitation_probability ?? [];
   const utcOffsetSeconds = forecast.utc_offset_seconds ?? 0;
   const targetTime = Date.now() + 60 * 60 * 1000;
 
   let closestTemperature = null;
+  let closestRainProbability = null;
   let closestTime = null;
   let closestDistance = Infinity;
 
@@ -255,6 +264,7 @@ function getTemperatureOneHourFromNow(forecast) {
     if (distance < closestDistance && typeof temperatures[index] === "number") {
       closestDistance = distance;
       closestTemperature = temperatures[index];
+      closestRainProbability = rainProbabilities[index];
       closestTime = time;
     }
   });
@@ -265,6 +275,7 @@ function getTemperatureOneHourFromNow(forecast) {
 
   return {
     temperature: closestTemperature,
+    rainProbability: closestRainProbability,
     interval: formatPredictionInterval(closestTime, forecast.timezone_abbreviation),
   };
 }
@@ -363,6 +374,10 @@ function formatTemperature(temperature) {
 
 function formatTemperatureWithUnit(temperature) {
   return `${formatTemperature(temperature)}°C`;
+}
+
+function formatPercent(value) {
+  return typeof value === "number" ? `${Math.round(value)}%` : "--";
 }
 
 function formatPredictionInterval(startTime, timezoneAbbreviation) {
