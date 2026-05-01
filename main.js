@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 const canvas = document.querySelector("#glow-scene");
 const values = {
+  title: document.querySelector(".header-row h1"),
   hex: document.querySelector("#hex-value"),
   scaleMin: document.querySelector("#scale-min-value"),
   scaleMax: document.querySelector("#scale-max-value"),
@@ -28,7 +29,10 @@ const rainProbabilityMaximum = 100;
 const offSphereColour = 0x666a73;
 const activeSphereEmissiveIntensity = 1.45;
 const activeCoreLightIntensity = 26;
-const initialGlowFadeDurationMs = 5000;
+const glowFadeDurationMs = 5000;
+const forecastCycleOffsets = [1, 2, 3];
+const forecastCycleSequence = [0, 1, 2, 1];
+const forecastCycleIntervalMs = glowFadeDurationMs;
 let scaleMinimum = 0;
 let scaleMaximum = 40;
 let expectedTemperature = 20;
@@ -36,6 +40,9 @@ let rainProbability = null;
 let browserLocation = null;
 let nextForecastUpdateAt = null;
 let forecastRefreshTimer = null;
+let forecastCycleTimer = null;
+let forecastCycleSequenceIndex = 0;
+let forecastPredictions = [];
 let glowTransition = null;
 const renderedGlowState = {
   color: new THREE.Color(offSphereColour),
@@ -165,6 +172,7 @@ function updateGlowColour() {
   startGlowTransition(glowState);
 
   values.hex.value = hex;
+  values.title.textContent = formatForecastTitle(getCurrentForecastOffset());
   values.scaleMin.textContent = formatTemperatureWithUnit(scaleMinimum);
   values.scaleMax.textContent = formatTemperatureWithUnit(scaleMaximum);
   values.expected.textContent = formatTemperatureWithUnit(expectedTemperature);
@@ -175,7 +183,7 @@ function updateGlowColour() {
 function startGlowTransition(targetState) {
   glowTransition = {
     startedAt: performance.now(),
-    duration: initialGlowFadeDurationMs,
+    duration: glowFadeDurationMs,
     from: {
       color: renderedGlowState.color.clone(),
       emissiveIntensity: renderedGlowState.emissiveIntensity,
@@ -284,11 +292,20 @@ async function refreshWeatherFromCurrentLocation() {
 
 async function refreshForecast(location) {
   const forecast = await fetchJson(getHourlyForecastUrl(location));
-  const prediction = getTemperatureOneHourFromNow(forecast);
-  if (typeof prediction?.temperature !== "number") {
+  const predictions = getForecastPredictions(forecast, forecastCycleOffsets);
+  if (predictions.length === 0) {
     throw new Error("Open-Meteo response did not include an hourly temperature forecast");
   }
 
+  forecastPredictions = predictions;
+  forecastCycleSequenceIndex %= forecastCycleSequence.length;
+  applyForecastPrediction(getCurrentForecastPrediction());
+  scheduleForecastCycle();
+  nextForecastUpdateAt = Date.now() + forecastRefreshIntervalMs;
+  updateRefreshCountdown();
+}
+
+function applyForecastPrediction(prediction) {
   expectedTemperature = THREE.MathUtils.clamp(
     prediction.temperature,
     scaleMinimum,
@@ -296,9 +313,30 @@ async function refreshForecast(location) {
   );
   rainProbability = prediction.rainProbability;
   values.interval.textContent = prediction.interval;
-  nextForecastUpdateAt = Date.now() + forecastRefreshIntervalMs;
   updateGlowColour();
-  updateRefreshCountdown();
+}
+
+function scheduleForecastCycle() {
+  clearInterval(forecastCycleTimer);
+  forecastCycleTimer = setInterval(showNextForecastPrediction, forecastCycleIntervalMs);
+}
+
+function showNextForecastPrediction() {
+  if (forecastPredictions.length === 0) {
+    return;
+  }
+
+  forecastCycleSequenceIndex = (forecastCycleSequenceIndex + 1) % forecastCycleSequence.length;
+  applyForecastPrediction(getCurrentForecastPrediction());
+}
+
+function getCurrentForecastOffset() {
+  return getCurrentForecastPrediction()?.offsetHours ?? forecastCycleOffsets[0];
+}
+
+function getCurrentForecastPrediction() {
+  const predictionIndex = forecastCycleSequence[forecastCycleSequenceIndex];
+  return forecastPredictions[predictionIndex] ?? forecastPredictions[0];
 }
 
 function getRainVerticalLevel(probability) {
@@ -355,12 +393,18 @@ function getHourlyForecastUrl(location) {
   return `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&hourly=temperature_2m,precipitation_probability&forecast_hours=6&temperature_unit=celsius&timezone=auto`;
 }
 
-function getTemperatureOneHourFromNow(forecast) {
+function getForecastPredictions(forecast, hourOffsets) {
+  return hourOffsets
+    .map((hourOffset) => getTemperatureHoursFromNow(forecast, hourOffset))
+    .filter(Boolean);
+}
+
+function getTemperatureHoursFromNow(forecast, hourOffset) {
   const times = forecast.hourly?.time ?? [];
   const temperatures = forecast.hourly?.temperature_2m ?? [];
   const rainProbabilities = forecast.hourly?.precipitation_probability ?? [];
   const utcOffsetSeconds = forecast.utc_offset_seconds ?? 0;
-  const targetTime = Date.now() + 60 * 60 * 1000;
+  const targetTime = Date.now() + hourOffset * 60 * 60 * 1000;
 
   let closestTemperature = null;
   let closestRainProbability = null;
@@ -384,6 +428,7 @@ function getTemperatureOneHourFromNow(forecast) {
   }
 
   return {
+    offsetHours: hourOffset,
     temperature: closestTemperature,
     rainProbability: closestRainProbability,
     interval: formatPredictionInterval(closestTime, forecast.timezone_abbreviation),
@@ -488,6 +533,10 @@ function formatTemperatureWithUnit(temperature) {
 
 function formatPercent(value) {
   return typeof value === "number" ? `${Math.round(value)}%` : "--";
+}
+
+function formatForecastTitle(hourOffset) {
+  return `${hourOffset} Hour Forecast`;
 }
 
 function formatPredictionInterval(startTime, timezoneAbbreviation) {
