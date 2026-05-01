@@ -25,6 +25,10 @@ const locationSourceLabels = {
 };
 const rainProbabilityMinimum = 0;
 const rainProbabilityMaximum = 100;
+const offSphereColour = 0x666a73;
+const activeSphereEmissiveIntensity = 1.45;
+const activeCoreLightIntensity = 26;
+const initialGlowFadeDurationMs = 5000;
 let scaleMinimum = 0;
 let scaleMaximum = 40;
 let expectedTemperature = 20;
@@ -32,6 +36,12 @@ let rainProbability = null;
 let browserLocation = null;
 let nextForecastUpdateAt = null;
 let forecastRefreshTimer = null;
+let glowTransition = null;
+const renderedGlowState = {
+  color: new THREE.Color(offSphereColour),
+  emissiveIntensity: 0,
+  lightIntensity: 0,
+};
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x050609, 0.055);
@@ -55,9 +65,9 @@ scene.add(group);
 
 const sphereGeometry = new THREE.SphereGeometry(1.35, 96, 96);
 const sphereMaterial = new THREE.MeshStandardMaterial({
-  color: 0x800080,
-  emissive: 0x800080,
-  emissiveIntensity: 1.45,
+  color: offSphereColour,
+  emissive: offSphereColour,
+  emissiveIntensity: 0,
   metalness: 0.08,
   roughness: 0.28,
 });
@@ -91,7 +101,7 @@ cradle.castShadow = true;
 cradle.receiveShadow = true;
 group.add(cradle);
 
-const coreLight = new THREE.PointLight(0x800080, 26, 9, 1.8);
+const coreLight = new THREE.PointLight(offSphereColour, 0, 9, 1.8);
 coreLight.position.set(0, 0.95, 0.6);
 scene.add(coreLight);
 
@@ -126,7 +136,7 @@ const stars = new THREE.Points(
 );
 scene.add(stars);
 
-function updateGlowColour() {
+function getWeatherGlowState() {
   const level = expectedTemperature;
   const normalizedLevel = THREE.MathUtils.clamp(level, scaleMinimum, scaleMaximum);
   const scaleRange = scaleMaximum - scaleMinimum || 1;
@@ -139,11 +149,20 @@ function updateGlowColour() {
     baseGreen * (1 - verticalLevel),
     verticalLevel,
   );
+
+  return {
+    color,
+    emissiveIntensity: activeSphereEmissiveIntensity,
+    lightIntensity: activeCoreLightIntensity,
+  };
+}
+
+function updateGlowColour() {
+  const glowState = getWeatherGlowState();
+  const color = glowState.color;
   const hex = `#${color.getHexString()}`;
 
-  sphereMaterial.emissive.copy(color);
-  sphereMaterial.color.copy(color);
-  coreLight.color.copy(color);
+  startGlowTransition(glowState);
 
   values.hex.value = hex;
   values.scaleMin.textContent = formatTemperatureWithUnit(scaleMinimum);
@@ -151,6 +170,71 @@ function updateGlowColour() {
   values.expected.textContent = formatTemperatureWithUnit(expectedTemperature);
   values.rain.textContent = formatPercent(rainProbability);
   document.documentElement.style.setProperty("--accent", hex);
+}
+
+function startGlowTransition(targetState) {
+  glowTransition = {
+    startedAt: performance.now(),
+    duration: initialGlowFadeDurationMs,
+    from: {
+      color: renderedGlowState.color.clone(),
+      emissiveIntensity: renderedGlowState.emissiveIntensity,
+      lightIntensity: renderedGlowState.lightIntensity,
+    },
+    to: {
+      color: targetState.color.clone(),
+      emissiveIntensity: targetState.emissiveIntensity,
+      lightIntensity: targetState.lightIntensity,
+    },
+  };
+}
+
+function updateGlowTransition(time) {
+  if (!glowTransition) {
+    return;
+  }
+
+  const progress = THREE.MathUtils.clamp(
+    (time - glowTransition.startedAt) / glowTransition.duration,
+    0,
+    1,
+  );
+  const easedProgress = progress * progress * (3 - 2 * progress);
+  const color = new THREE.Color().lerpColors(
+    glowTransition.from.color,
+    glowTransition.to.color,
+    easedProgress,
+  );
+
+  applyGlowState({
+    color,
+    emissiveIntensity: THREE.MathUtils.lerp(
+      glowTransition.from.emissiveIntensity,
+      glowTransition.to.emissiveIntensity,
+      easedProgress,
+    ),
+    lightIntensity: THREE.MathUtils.lerp(
+      glowTransition.from.lightIntensity,
+      glowTransition.to.lightIntensity,
+      easedProgress,
+    ),
+  });
+
+  if (progress === 1) {
+    glowTransition = null;
+  }
+}
+
+function applyGlowState(glowState) {
+  renderedGlowState.color.copy(glowState.color);
+  renderedGlowState.emissiveIntensity = glowState.emissiveIntensity;
+  renderedGlowState.lightIntensity = glowState.lightIntensity;
+
+  sphereMaterial.color.copy(glowState.color);
+  sphereMaterial.emissive.copy(glowState.color);
+  sphereMaterial.emissiveIntensity = glowState.emissiveIntensity;
+  coreLight.color.copy(glowState.color);
+  coreLight.intensity = glowState.lightIntensity;
 }
 
 function resizeRenderer() {
@@ -162,9 +246,16 @@ function resizeRenderer() {
 }
 
 window.addEventListener("resize", resizeRenderer);
-updateGlowColour();
+initializeOffGlowState();
 setInitialTemperatureLevel();
 setInterval(updateRefreshCountdown, 1000);
+
+function initializeOffGlowState() {
+  applyGlowState(renderedGlowState);
+  const hex = `#${renderedGlowState.color.getHexString()}`;
+  values.hex.value = hex;
+  document.documentElement.style.setProperty("--accent", hex);
+}
 
 async function setInitialTemperatureLevel() {
   try {
@@ -467,6 +558,7 @@ function animate(time = 0) {
   group.rotation.x = Math.sin(seconds * 0.45) * 0.06;
   stars.rotation.y = seconds * 0.015;
   stars.rotation.x = seconds * 0.006;
+  updateGlowTransition(time);
 
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
