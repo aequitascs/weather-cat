@@ -82,37 +82,44 @@ const sphereMaterial = new THREE.MeshStandardMaterial({
   roughness: 0.28,
 });
 const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-sphere.position.y = 0.95;
+sphere.position.y = 0.79;
 group.add(sphere);
 
 const standMaterial = new THREE.MeshPhysicalMaterial({
   color: 0xf7f8f5,
-  roughness: 0.42,
+  roughness: 0.18,
   metalness: 0,
-  clearcoat: 0.7,
-  clearcoatRoughness: 0.28,
+  clearcoat: 0.92,
+  clearcoatRoughness: 0.14,
 });
 
-const base = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.34, 0.34, 96), standMaterial);
-base.position.y = -0.78;
-base.castShadow = true;
-base.receiveShadow = true;
-group.add(base);
+const concaveStandMaterial = standMaterial.clone();
+concaveStandMaterial.side = THREE.BackSide;
 
-const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.54, 1.08, 96), standMaterial);
-stem.position.y = -0.18;
-stem.castShadow = true;
-stem.receiveShadow = true;
-group.add(stem);
+const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.68, 0.92, 0.5, 128, 1, true), standMaterial);
+pedestal.position.y = -0.62;
+pedestal.castShadow = true;
+pedestal.receiveShadow = true;
+group.add(pedestal);
 
-const cradle = new THREE.Mesh(new THREE.CylinderGeometry(0.74, 0.58, 0.22, 96), standMaterial);
-cradle.position.y = 0.47;
-cradle.castShadow = true;
-cradle.receiveShadow = true;
-group.add(cradle);
+const pedestalBase = new THREE.Mesh(new THREE.CircleGeometry(0.92, 128), standMaterial);
+pedestalBase.rotation.x = -Math.PI / 2;
+pedestalBase.position.y = -0.87;
+pedestalBase.castShadow = true;
+pedestalBase.receiveShadow = true;
+group.add(pedestalBase);
+
+const pedestalBowl = new THREE.Mesh(
+  new THREE.SphereGeometry(1.35, 128, 24, 0, Math.PI * 2, Math.PI - 0.53, 0.53),
+  concaveStandMaterial,
+);
+pedestalBowl.position.y = 0.79;
+pedestalBowl.castShadow = true;
+pedestalBowl.receiveShadow = true;
+group.add(pedestalBowl);
 
 const coreLight = new THREE.PointLight(offSphereColour, 0, 9, 1.8);
-coreLight.position.set(0, 0.95, 0.6);
+coreLight.position.set(0, 0.79, 0.6);
 scene.add(coreLight);
 
 const keyLight = new THREE.DirectionalLight(0xffffff, 1.7);
