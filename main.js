@@ -19,6 +19,8 @@ const defaultLocation = {
   longitude: 18.4241,
   source: "default",
 };
+const initialBrowserLocationTimeoutMs = 2000;
+const browserLocationTimeoutMs = 10000;
 const locationSourceLabels = {
   browser: "Browser",
   ip: "Approximate",
@@ -267,7 +269,9 @@ function initializeOffGlowState() {
 
 async function setInitialTemperatureLevel() {
   try {
-    await refreshWeatherFromCurrentLocation();
+    await refreshWeatherFromCurrentLocation({
+      browserLocationTimeoutMs: initialBrowserLocationTimeoutMs,
+    });
     scheduleForecastRefresh();
   } catch (error) {
     values.location.textContent = getLocationErrorMessage(error);
@@ -275,8 +279,8 @@ async function setInitialTemperatureLevel() {
   }
 }
 
-async function refreshWeatherFromCurrentLocation() {
-  const currentLocation = await getCurrentLocation();
+async function refreshWeatherFromCurrentLocation({ browserLocationTimeoutMs } = {}) {
+  const currentLocation = await getCurrentLocation({ browserLocationTimeoutMs });
   const locationChanged = !browserLocation || !locationsMatch(browserLocation, currentLocation);
   browserLocation = currentLocation;
   values.location.textContent = formatLocation(browserLocation);
@@ -435,7 +439,7 @@ function getTemperatureHoursFromNow(forecast, hourOffset) {
   };
 }
 
-function getBrowserLocation() {
+function getBrowserLocation({ timeout = browserLocationTimeoutMs } = {}) {
   return new Promise((resolve, reject) => {
     if (!window.isSecureContext) {
       reject(new Error("Geolocation requires HTTPS or localhost"));
@@ -459,15 +463,15 @@ function getBrowserLocation() {
       {
         enableHighAccuracy: false,
         maximumAge: 0,
-        timeout: 10000,
+        timeout,
       },
     );
   });
 }
 
-async function getCurrentLocation() {
+async function getCurrentLocation({ browserLocationTimeoutMs } = {}) {
   try {
-    return await getBrowserLocation();
+    return await getBrowserLocation({ timeout: browserLocationTimeoutMs });
   } catch (error) {
     logGeolocationProblem("browser", error);
   }
