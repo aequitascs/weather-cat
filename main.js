@@ -1,7 +1,9 @@
 import * as THREE from "three";
 
 const canvas = document.querySelector("#glow-scene");
+const isDebugMode = new URLSearchParams(window.location.search).get("mode") === "debug";
 const values = {
+  controls: document.querySelector(".controls"),
   title: document.querySelector(".header-row h1"),
   hex: document.querySelector("#hex-value"),
   scaleMin: document.querySelector("#scale-min-value"),
@@ -12,6 +14,8 @@ const values = {
   nextUpdate: document.querySelector("#next-update-value"),
   location: document.querySelector("#location-value"),
 };
+
+values.controls.hidden = !isDebugMode;
 
 const forecastRefreshIntervalMs = 5 * 60 * 1000;
 const initialBrowserLocationTimeoutMs = 10000;
