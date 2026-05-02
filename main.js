@@ -14,7 +14,7 @@ const values = {
 };
 
 const forecastRefreshIntervalMs = 5 * 60 * 1000;
-const initialBrowserLocationTimeoutMs = 2000;
+const initialBrowserLocationTimeoutMs = 10000;
 const browserLocationTimeoutMs = 10000;
 const locationSourceLabels = {
   browser: "Browser",
