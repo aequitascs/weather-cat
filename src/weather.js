@@ -1,20 +1,23 @@
 const outlierStandardDeviationLimit = 2;
+const apparentTemperatureHourlyField = "apparent_temperature";
+const apparentTemperatureDailyMinimumField = "apparent_temperature_min";
+const apparentTemperatureDailyMaximumField = "apparent_temperature_max";
 
 export async function fetchTemperatureRange(location) {
   const { startDate, endDate } = getLastTwelveMonthDateRange();
   const archiveUrl =
-    `https://archive-api.open-meteo.com/v1/archive?latitude=${location.latitude}&longitude=${location.longitude}&start_date=${startDate}&end_date=${endDate}&daily=temperature_2m_min,temperature_2m_max&temperature_unit=celsius&timezone=auto`;
+    `https://archive-api.open-meteo.com/v1/archive?latitude=${location.latitude}&longitude=${location.longitude}&start_date=${startDate}&end_date=${endDate}&daily=${apparentTemperatureDailyMinimumField},${apparentTemperatureDailyMaximumField}&temperature_unit=celsius&timezone=auto`;
   const historicalWeather = await fetchJson(archiveUrl);
-  const dailyMinimums = historicalWeather.daily?.temperature_2m_min ?? [];
-  const dailyMaximums = historicalWeather.daily?.temperature_2m_max ?? [];
+  const dailyMinimums = historicalWeather.daily?.[apparentTemperatureDailyMinimumField] ?? [];
+  const dailyMaximums = historicalWeather.daily?.[apparentTemperatureDailyMaximumField] ?? [];
   const validMinimums = dailyMinimums.filter(isNumber);
   const validMaximums = dailyMaximums.filter(isNumber);
 
   if (validMinimums.length === 0) {
-    throw new Error("Open-Meteo archive response did not include daily.temperature_2m_min values");
+    throw new Error(`Open-Meteo archive response did not include daily.${apparentTemperatureDailyMinimumField} values`);
   }
   if (validMaximums.length === 0) {
-    throw new Error("Open-Meteo archive response did not include daily.temperature_2m_max values");
+    throw new Error(`Open-Meteo archive response did not include daily.${apparentTemperatureDailyMaximumField} values`);
   }
 
   const filteredMinimums = removeStatisticalOutliers(validMinimums);
@@ -45,7 +48,7 @@ export async function fetchJson(url, serviceName = "Open-Meteo") {
 }
 
 function getHourlyForecastUrl(location) {
-  return `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&hourly=temperature_2m,precipitation_probability&forecast_hours=6&temperature_unit=celsius&timezone=auto`;
+  return `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&hourly=${apparentTemperatureHourlyField},precipitation_probability&forecast_hours=6&temperature_unit=celsius&timezone=auto`;
 }
 
 function getForecastPredictions(forecast, hourOffsets) {
@@ -56,7 +59,7 @@ function getForecastPredictions(forecast, hourOffsets) {
 
 function getTemperatureHoursFromNow(forecast, hourOffset) {
   const times = forecast.hourly?.time ?? [];
-  const temperatures = forecast.hourly?.temperature_2m ?? [];
+  const temperatures = forecast.hourly?.[apparentTemperatureHourlyField] ?? [];
   const rainProbabilities = forecast.hourly?.precipitation_probability ?? [];
   const utcOffsetSeconds = forecast.utc_offset_seconds ?? 0;
   const targetTime = Date.now() + hourOffset * 60 * 60 * 1000;
