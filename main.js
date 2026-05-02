@@ -4,13 +4,12 @@ const canvas = document.querySelector("#glow-scene");
 const isDebugMode = new URLSearchParams(window.location.search).get("mode") === "debug";
 const values = {
   controls: document.querySelector(".controls"),
-  title: document.querySelector(".header-row h1"),
   hex: document.querySelector("#hex-value"),
   scaleMin: document.querySelector("#scale-min-value"),
   scaleMax: document.querySelector("#scale-max-value"),
   expected: document.querySelector("#expected-value"),
   rain: document.querySelector("#rain-value"),
-  interval: document.querySelector("#interval-value"),
+  forecastTime: document.querySelector("#forecast-time-value"),
   nextUpdate: document.querySelector("#next-update-value"),
   location: document.querySelector("#location-value"),
 };
@@ -187,7 +186,6 @@ function updateGlowColour() {
   startGlowTransition(glowState);
 
   values.hex.value = hex;
-  values.title.textContent = formatForecastTitle(getCurrentForecastOffset());
   values.scaleMin.textContent = formatTemperatureWithUnit(scaleMinimum);
   values.scaleMax.textContent = formatTemperatureWithUnit(scaleMaximum);
   values.expected.textContent = formatTemperatureWithUnit(expectedTemperature);
@@ -201,13 +199,12 @@ function deactivateForecastGlow({ fade = true } = {}) {
   forecastCycleSequenceIndex = 0;
   expectedTemperature = 20;
   rainProbability = null;
-  values.title.textContent = "Forecast";
   values.hex.value = `#${new THREE.Color(offSphereColour).getHexString()}`;
   values.scaleMin.textContent = "--";
   values.scaleMax.textContent = "--";
   values.expected.textContent = "--";
   values.rain.textContent = "--";
-  values.interval.textContent = "--";
+  values.forecastTime.textContent = "--";
   document.documentElement.style.setProperty("--accent", values.hex.value);
 
   const offState = {
@@ -363,7 +360,7 @@ function applyForecastPrediction(prediction) {
     scaleMaximum,
   );
   rainProbability = prediction.rainProbability;
-  values.interval.textContent = prediction.interval;
+  values.forecastTime.textContent = prediction.forecastTime;
   updateGlowColour();
 }
 
@@ -379,10 +376,6 @@ function showNextForecastPrediction() {
 
   forecastCycleSequenceIndex = (forecastCycleSequenceIndex + 1) % forecastCycleSequence.length;
   applyForecastPrediction(getCurrentForecastPrediction());
-}
-
-function getCurrentForecastOffset() {
-  return getCurrentForecastPrediction()?.offsetHours ?? forecastCycleOffsets[0];
 }
 
 function getCurrentForecastPrediction() {
@@ -486,7 +479,7 @@ function getTemperatureHoursFromNow(forecast, hourOffset) {
     offsetHours: hourOffset,
     temperature: closestTemperature,
     rainProbability: closestRainProbability,
-    interval: formatPredictionInterval(closestTime, forecast.timezone_abbreviation),
+    forecastTime: formatPredictionTime(closestTime, forecast.timezone_abbreviation),
   };
 }
 
@@ -590,21 +583,15 @@ function formatPercent(value) {
   return typeof value === "number" ? `${Math.round(value)}%` : "--";
 }
 
-function formatForecastTitle(hourOffset) {
-  return `${hourOffset} Hour Forecast`;
-}
-
-function formatPredictionInterval(startTime, timezoneAbbreviation) {
-  const start = new Date(`${startTime}:00`);
-  const end = new Date(start);
-  end.setHours(end.getHours() + 1);
+function formatPredictionTime(startTime, timezoneAbbreviation) {
+  const forecastTime = new Date(`${startTime}:00`);
   const formatter = new Intl.DateTimeFormat([], {
     hour: "2-digit",
     minute: "2-digit",
   });
   const timezone = timezoneAbbreviation ? ` ${timezoneAbbreviation}` : "";
 
-  return `${formatter.format(start)}-${formatter.format(end)}${timezone}`;
+  return `${formatter.format(forecastTime)}${timezone}`;
 }
 
 function formatLocation(location) {

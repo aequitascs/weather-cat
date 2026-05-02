@@ -22,38 +22,29 @@
       <canvas id="glow-scene" aria-label="Interactive glowing sphere"></canvas>
 
       <section class="controls" aria-label="Glow colour controls" hidden>
-        <div class="header-row">
-          <h1>1 Hour Forecast</h1>
+        <div class="forecast-readout">
+          <span id="expected-value" class="temperature-value">--</span>
           <output id="hex-value" class="hex-value">#800080</output>
         </div>
 
-        <dl class="weather-grid">
+        <dl class="weather-strip">
           <div>
-            <dt>Scale min</dt>
-            <dd id="scale-min-value">--</dd>
-          </div>
-          <div>
-            <dt>Scale max</dt>
-            <dd id="scale-max-value">--</dd>
-          </div>
-          <div>
-            <dt>Expected</dt>
-            <dd id="expected-value">--</dd>
+            <dt>Time</dt>
+            <dd id="forecast-time-value">--</dd>
           </div>
           <div>
             <dt>Rain</dt>
             <dd id="rain-value">--</dd>
           </div>
           <div>
-            <dt>Interval</dt>
-            <dd id="interval-value">--</dd>
-          </div>
-          <div>
-            <dt>Next update</dt>
+            <dt>Next</dt>
             <dd id="next-update-value">--</dd>
           </div>
         </dl>
 
+        <p class="scale-value">
+          Scale <span id="scale-min-value">--</span>-<span id="scale-max-value">--</span>
+        </p>
         <p id="location-value" class="location-value">Locating...</p>
         <a class="page-link" href="./colour.html">Colour</a>
       </section>
