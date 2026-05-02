@@ -1,28 +1,27 @@
 import * as THREE from "three";
+import {
+  resetPanelGlow,
+  setDebugPanelVisible,
+  updatePanelForecastTime,
+  updatePanelGlow,
+  updatePanelLocation,
+  updatePanelLocationMessage,
+  updatePanelNextRefresh,
+} from "./debug-panel.js";
+import {
+  clampTemperatureToScale,
+  fetchForecastPredictions,
+  fetchJson,
+  fetchTemperatureRange,
+} from "./weather.js";
 
 const canvas = document.querySelector("#glow-scene");
 const isDebugMode = new URLSearchParams(window.location.search).get("mode") === "debug";
-const values = {
-  controls: document.querySelector(".controls"),
-  hex: document.querySelector("#hex-value"),
-  scaleMin: document.querySelector("#scale-min-value"),
-  scaleMax: document.querySelector("#scale-max-value"),
-  expected: document.querySelector("#expected-value"),
-  rain: document.querySelector("#rain-value"),
-  forecastTime: document.querySelector("#forecast-time-value"),
-  nextUpdate: document.querySelector("#next-update-value"),
-  location: document.querySelector("#location-value"),
-};
-
-values.controls.hidden = !isDebugMode;
+setDebugPanelVisible(isDebugMode);
 
 const forecastRefreshIntervalMs = 5 * 60 * 1000;
 const initialBrowserLocationTimeoutMs = 10000;
 const browserLocationTimeoutMs = 10000;
-const locationSourceLabels = {
-  browser: "Browser",
-  ip: "Approximate",
-};
 const rainProbabilityMinimum = 0;
 const rainProbabilityMaximum = 100;
 const offSphereColour = 0x666a73;
@@ -185,11 +184,13 @@ function updateGlowColour() {
 
   startGlowTransition(glowState);
 
-  values.hex.value = hex;
-  values.scaleMin.textContent = formatTemperatureWithUnit(scaleMinimum);
-  values.scaleMax.textContent = formatTemperatureWithUnit(scaleMaximum);
-  values.expected.textContent = formatTemperatureWithUnit(expectedTemperature);
-  values.rain.textContent = formatPercent(rainProbability);
+  updatePanelGlow({
+    hex,
+    scaleMinimum,
+    scaleMaximum,
+    expectedTemperature,
+    rainProbability,
+  });
   document.documentElement.style.setProperty("--accent", hex);
 }
 
@@ -199,13 +200,9 @@ function deactivateForecastGlow({ fade = true } = {}) {
   forecastCycleSequenceIndex = 0;
   expectedTemperature = 20;
   rainProbability = null;
-  values.hex.value = `#${new THREE.Color(offSphereColour).getHexString()}`;
-  values.scaleMin.textContent = "--";
-  values.scaleMax.textContent = "--";
-  values.expected.textContent = "--";
-  values.rain.textContent = "--";
-  values.forecastTime.textContent = "--";
-  document.documentElement.style.setProperty("--accent", values.hex.value);
+  const hex = `#${new THREE.Color(offSphereColour).getHexString()}`;
+  resetPanelGlow(hex);
+  document.documentElement.style.setProperty("--accent", hex);
 
   const offState = {
     color: new THREE.Color(offSphereColour),
@@ -303,7 +300,7 @@ setInterval(updateRefreshCountdown, 1000);
 function initializeOffGlowState() {
   applyGlowState(renderedGlowState);
   const hex = `#${renderedGlowState.color.getHexString()}`;
-  values.hex.value = hex;
+  resetPanelGlow(hex);
   document.documentElement.style.setProperty("--accent", hex);
 }
 
@@ -316,7 +313,7 @@ async function setInitialTemperatureLevel() {
     deactivateForecastGlow({ fade: false });
     nextForecastUpdateAt = Date.now() + forecastRefreshIntervalMs;
     updateRefreshCountdown();
-    values.location.textContent = getLocationErrorMessage(error);
+    updatePanelLocationMessage(getLocationErrorMessage(error));
     console.warn("Could not load local temperature scale from Open-Meteo.", error);
   } finally {
     scheduleForecastRefresh();
@@ -327,7 +324,7 @@ async function refreshWeatherFromCurrentLocation({ browserLocationTimeoutMs } = 
   const currentLocation = await getCurrentLocation({ browserLocationTimeoutMs });
   const locationChanged = !browserLocation || !locationsMatch(browserLocation, currentLocation);
   browserLocation = currentLocation;
-  values.location.textContent = formatLocation(browserLocation);
+  updatePanelLocation(browserLocation);
 
   if (locationChanged) {
     const historicalRange = await fetchTemperatureRange(browserLocation);
@@ -339,8 +336,7 @@ async function refreshWeatherFromCurrentLocation({ browserLocationTimeoutMs } = 
 }
 
 async function refreshForecast(location) {
-  const forecast = await fetchJson(getHourlyForecastUrl(location));
-  const predictions = getForecastPredictions(forecast, forecastCycleOffsets);
+  const predictions = await fetchForecastPredictions(location, forecastCycleOffsets);
   if (predictions.length === 0) {
     throw new Error("Open-Meteo response did not include an hourly temperature forecast");
   }
@@ -354,9 +350,13 @@ async function refreshForecast(location) {
 }
 
 function applyForecastPrediction(prediction) {
-  expectedTemperature = clampTemperatureToScale(prediction.temperature);
+  expectedTemperature = clampTemperatureToScale(
+    prediction.temperature,
+    scaleMinimum,
+    scaleMaximum,
+  );
   rainProbability = prediction.rainProbability;
-  values.forecastTime.textContent = prediction.forecastTime;
+  updatePanelForecastTime(prediction.forecastTime);
   updateGlowColour();
 }
 
@@ -401,85 +401,13 @@ function scheduleForecastRefresh() {
     } catch (error) {
       if (error instanceof LocationUnavailableError) {
         deactivateForecastGlow();
-        values.location.textContent = getLocationErrorMessage(error);
+        updatePanelLocationMessage(getLocationErrorMessage(error));
       }
       nextForecastUpdateAt = Date.now() + forecastRefreshIntervalMs;
       updateRefreshCountdown();
       console.warn("Could not refresh local temperature forecast from Open-Meteo.", error);
     }
   }, forecastRefreshIntervalMs);
-}
-
-async function fetchTemperatureRange(location) {
-  const { startDate, endDate } = getLastTwelveMonthDateRange();
-  const archiveUrl =
-    `https://archive-api.open-meteo.com/v1/archive?latitude=${location.latitude}&longitude=${location.longitude}&start_date=${startDate}&end_date=${endDate}&daily=temperature_2m_min,temperature_2m_max&temperature_unit=celsius&timezone=auto`;
-  const historicalWeather = await fetchJson(archiveUrl);
-  const dailyMinimums = historicalWeather.daily?.temperature_2m_min ?? [];
-  const dailyMaximums = historicalWeather.daily?.temperature_2m_max ?? [];
-  const validMinimums = dailyMinimums.filter(isNumber);
-  const validMaximums = dailyMaximums.filter(isNumber);
-
-  if (validMinimums.length === 0) {
-    throw new Error("Open-Meteo archive response did not include daily.temperature_2m_min values");
-  }
-  if (validMaximums.length === 0) {
-    throw new Error("Open-Meteo archive response did not include daily.temperature_2m_max values");
-  }
-
-  const filteredMinimums = removeStatisticalOutliers(validMinimums);
-  const filteredMaximums = removeStatisticalOutliers(validMaximums);
-
-  return {
-    minimum: Math.min(...filteredMinimums),
-    maximum: Math.max(...filteredMaximums),
-  };
-}
-
-function getHourlyForecastUrl(location) {
-  return `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&hourly=temperature_2m,precipitation_probability&forecast_hours=6&temperature_unit=celsius&timezone=auto`;
-}
-
-function getForecastPredictions(forecast, hourOffsets) {
-  return hourOffsets
-    .map((hourOffset) => getTemperatureHoursFromNow(forecast, hourOffset))
-    .filter(Boolean);
-}
-
-function getTemperatureHoursFromNow(forecast, hourOffset) {
-  const times = forecast.hourly?.time ?? [];
-  const temperatures = forecast.hourly?.temperature_2m ?? [];
-  const rainProbabilities = forecast.hourly?.precipitation_probability ?? [];
-  const utcOffsetSeconds = forecast.utc_offset_seconds ?? 0;
-  const targetTime = Date.now() + hourOffset * 60 * 60 * 1000;
-
-  let closestTemperature = null;
-  let closestRainProbability = null;
-  let closestTime = null;
-  let closestDistance = Infinity;
-
-  times.forEach((time, index) => {
-    const forecastTime = Date.parse(`${time}:00Z`) - utcOffsetSeconds * 1000;
-    const distance = Math.abs(forecastTime - targetTime);
-
-    if (distance < closestDistance && typeof temperatures[index] === "number") {
-      closestDistance = distance;
-      closestTemperature = temperatures[index];
-      closestRainProbability = rainProbabilities[index];
-      closestTime = time;
-    }
-  });
-
-  if (closestTemperature === null || closestTime === null) {
-    return null;
-  }
-
-  return {
-    offsetHours: hourOffset,
-    temperature: closestTemperature,
-    rainProbability: closestRainProbability,
-    forecastTime: formatPredictionTime(closestTime, forecast.timezone_abbreviation),
-  };
 }
 
 function getBrowserLocation({ timeout = browserLocationTimeoutMs } = {}) {
@@ -544,102 +472,6 @@ async function getIpLocation() {
   };
 }
 
-async function fetchJson(url, serviceName = "Open-Meteo") {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`${serviceName} returned ${response.status}`);
-  }
-
-  return response.json();
-}
-
-function getLastTwelveMonthDateRange() {
-  const end = new Date();
-  end.setDate(end.getDate() - 1);
-  const start = new Date(end);
-  start.setFullYear(start.getFullYear() - 1);
-  start.setDate(start.getDate() + 1);
-
-  return {
-    startDate: formatDate(start),
-    endDate: formatDate(end),
-  };
-}
-
-function formatDate(date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function formatTemperature(temperature) {
-  return Number.isInteger(temperature) ? String(temperature) : temperature.toFixed(1);
-}
-
-function formatTemperatureWithUnit(temperature) {
-  return `${formatTemperature(temperature)}°C`;
-}
-
-function formatPercent(value) {
-  return typeof value === "number" ? `${Math.round(value)}%` : "--";
-}
-
-function clampTemperatureToScale(temperature) {
-  return THREE.MathUtils.clamp(temperature, scaleMinimum, scaleMaximum);
-}
-
-function removeStatisticalOutliers(values) {
-  if (values.length < 4) {
-    return values;
-  }
-
-  const sortedValues = [...values].sort((first, second) => first - second);
-  const firstQuartile = getPercentile(sortedValues, 0.25);
-  const thirdQuartile = getPercentile(sortedValues, 0.75);
-  const interquartileRange = thirdQuartile - firstQuartile;
-
-  if (interquartileRange === 0) {
-    return values;
-  }
-
-  const lowerFence = firstQuartile - interquartileRange * 1.5;
-  const upperFence = thirdQuartile + interquartileRange * 1.5;
-  const filteredValues = values.filter(
-    (value) => value >= lowerFence && value <= upperFence,
-  );
-
-  return filteredValues.length > 0 ? filteredValues : values;
-}
-
-function getPercentile(sortedValues, percentile) {
-  const position = (sortedValues.length - 1) * percentile;
-  const lowerIndex = Math.floor(position);
-  const upperIndex = Math.ceil(position);
-
-  if (lowerIndex === upperIndex) {
-    return sortedValues[lowerIndex];
-  }
-
-  const weight = position - lowerIndex;
-  return THREE.MathUtils.lerp(sortedValues[lowerIndex], sortedValues[upperIndex], weight);
-}
-
-function formatPredictionTime(startTime, timezoneAbbreviation) {
-  const forecastTime = new Date(`${startTime}:00`);
-  const formatter = new Intl.DateTimeFormat([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const timezone = timezoneAbbreviation ? ` ${timezoneAbbreviation}` : "";
-
-  return `${formatter.format(forecastTime)}${timezone}`;
-}
-
-function formatLocation(location) {
-  const latitudeDirection = location.latitude >= 0 ? "N" : "S";
-  const longitudeDirection = location.longitude >= 0 ? "E" : "W";
-  const sourceLabel = locationSourceLabels[location.source] ?? "Location";
-  return `${sourceLabel}: ${Math.abs(location.latitude).toFixed(4)}°${latitudeDirection}, ${Math.abs(location.longitude).toFixed(4)}°${longitudeDirection}`;
-}
-
 function locationsMatch(firstLocation, secondLocation) {
   return (
     firstLocation.latitude === secondLocation.latitude &&
@@ -653,15 +485,7 @@ function logGeolocationProblem(method, error) {
 }
 
 function updateRefreshCountdown() {
-  if (!nextForecastUpdateAt) {
-    values.nextUpdate.textContent = "--";
-    return;
-  }
-
-  const remainingSeconds = Math.max(0, Math.ceil((nextForecastUpdateAt - Date.now()) / 1000));
-  const minutes = Math.floor(remainingSeconds / 60);
-  const seconds = remainingSeconds % 60;
-  values.nextUpdate.textContent = `${minutes}:${String(seconds).padStart(2, "0")}`;
+  updatePanelNextRefresh(nextForecastUpdateAt);
 }
 
 function getLocationErrorMessage(error) {
@@ -676,10 +500,6 @@ function getLocationErrorMessage(error) {
   }
 
   return error?.message ?? "Location unavailable";
-}
-
-function isNumber(value) {
-  return typeof value === "number";
 }
 
 function animate(time = 0) {
