@@ -9,9 +9,19 @@ import {
   updatePanelNextRefresh,
 } from "./debug-panel.js";
 import {
+  getGlowColourChannels,
+  getRainLevel,
+  getTemperatureLevel,
+} from "./glow-colour.js";
+import {
+  getCurrentLocation,
+  getLocationErrorMessage,
+  LocationUnavailableError,
+  locationsMatch,
+} from "./location.js";
+import {
   clampTemperatureToScale,
   fetchForecastPredictions,
-  fetchJson,
   fetchTemperatureRange,
 } from "./weather.js";
 
@@ -35,7 +45,7 @@ let scaleMinimum = 0;
 let scaleMaximum = 40;
 let expectedTemperature = 20;
 let rainProbability = null;
-let browserLocation = null;
+let currentLocation = null;
 let nextForecastUpdateAt = null;
 let forecastRefreshTimer = null;
 let forecastCycleTimer = null;
@@ -47,13 +57,6 @@ const renderedGlowState = {
   emissiveIntensity: 0,
   lightIntensity: 0,
 };
-
-class LocationUnavailableError extends Error {
-  constructor() {
-    super("Location unavailable");
-    this.name = "LocationUnavailableError";
-  }
-}
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x050609, 0.055);
@@ -156,18 +159,21 @@ const stars = new THREE.Points(
 scene.add(stars);
 
 function getWeatherGlowState() {
-  const level = expectedTemperature;
-  const normalizedLevel = THREE.MathUtils.clamp(level, scaleMinimum, scaleMaximum);
-  const scaleRange = scaleMaximum - scaleMinimum || 1;
-  const temperatureLevel = (normalizedLevel - scaleMinimum) / scaleRange;
-  const blueLevel = getRainVerticalLevel(rainProbability);
-  const fadeLevel = blueLevel ** 2;
-  const baseRed = Math.min(temperatureLevel * 2, 1);
-  const baseGreen = Math.min((1 - temperatureLevel) * 2, 1);
+  const temperatureLevel = getTemperatureLevel(
+    expectedTemperature,
+    scaleMinimum,
+    scaleMaximum,
+  );
+  const rainLevel = getRainLevel(
+    rainProbability,
+    rainProbabilityMinimum,
+    rainProbabilityMaximum,
+  );
+  const colorChannels = getGlowColourChannels({ temperatureLevel, rainLevel });
   const color = new THREE.Color(
-    baseRed * (1 - fadeLevel),
-    baseGreen * (1 - fadeLevel),
-    blueLevel,
+    colorChannels.red,
+    colorChannels.green,
+    colorChannels.blue,
   );
 
   return {
@@ -321,18 +327,18 @@ async function setInitialTemperatureLevel() {
 }
 
 async function refreshWeatherFromCurrentLocation({ browserLocationTimeoutMs } = {}) {
-  const currentLocation = await getCurrentLocation({ browserLocationTimeoutMs });
-  const locationChanged = !browserLocation || !locationsMatch(browserLocation, currentLocation);
-  browserLocation = currentLocation;
-  updatePanelLocation(browserLocation);
+  const refreshedLocation = await getCurrentLocation({ browserLocationTimeoutMs });
+  const locationChanged = !currentLocation || !locationsMatch(currentLocation, refreshedLocation);
+  currentLocation = refreshedLocation;
+  updatePanelLocation(currentLocation);
 
   if (locationChanged) {
-    const historicalRange = await fetchTemperatureRange(browserLocation);
+    const historicalRange = await fetchTemperatureRange(currentLocation);
     scaleMinimum = historicalRange.minimum;
     scaleMaximum = historicalRange.maximum;
   }
 
-  await refreshForecast(browserLocation);
+  await refreshForecast(currentLocation);
 }
 
 async function refreshForecast(location) {
@@ -379,20 +385,6 @@ function getCurrentForecastPrediction() {
   return forecastPredictions[predictionIndex] ?? forecastPredictions[0];
 }
 
-function getRainVerticalLevel(probability) {
-  if (typeof probability !== "number") {
-    return rainProbabilityMinimum;
-  }
-
-  const clampedProbability = THREE.MathUtils.clamp(
-    probability,
-    rainProbabilityMinimum,
-    rainProbabilityMaximum,
-  );
-  return ((clampedProbability - rainProbabilityMinimum) /
-    (rainProbabilityMaximum - rainProbabilityMinimum));
-}
-
 function scheduleForecastRefresh() {
   clearInterval(forecastRefreshTimer);
   forecastRefreshTimer = setInterval(async () => {
@@ -410,96 +402,8 @@ function scheduleForecastRefresh() {
   }, forecastRefreshIntervalMs);
 }
 
-function getBrowserLocation({ timeout = browserLocationTimeoutMs } = {}) {
-  return new Promise((resolve, reject) => {
-    if (!window.isSecureContext) {
-      reject(new Error("Geolocation requires HTTPS or localhost"));
-      return;
-    }
-
-    if (!navigator.geolocation) {
-      reject(new Error("Browser geolocation is not available"));
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve({
-          latitude: Number(position.coords.latitude.toFixed(4)),
-          longitude: Number(position.coords.longitude.toFixed(4)),
-          source: "browser",
-        });
-      },
-      (error) => reject(error),
-      {
-        enableHighAccuracy: false,
-        maximumAge: 0,
-        timeout,
-      },
-    );
-  });
-}
-
-async function getCurrentLocation({ browserLocationTimeoutMs } = {}) {
-  try {
-    return await getBrowserLocation({ timeout: browserLocationTimeoutMs });
-  } catch (error) {
-    logGeolocationProblem("browser", error);
-  }
-
-  try {
-    return await getIpLocation();
-  } catch (error) {
-    logGeolocationProblem("ip", error);
-  }
-
-  throw new LocationUnavailableError();
-}
-
-async function getIpLocation() {
-  const ipLocation = await fetchJson("https://ipapi.co/json/", "IP geolocation");
-  const latitude = Number(ipLocation.latitude);
-  const longitude = Number(ipLocation.longitude);
-
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-    throw new Error("IP geolocation response did not include latitude and longitude");
-  }
-
-  return {
-    latitude: Number(latitude.toFixed(4)),
-    longitude: Number(longitude.toFixed(4)),
-    source: "ip",
-  };
-}
-
-function locationsMatch(firstLocation, secondLocation) {
-  return (
-    firstLocation.latitude === secondLocation.latitude &&
-    firstLocation.longitude === secondLocation.longitude
-  );
-}
-
-function logGeolocationProblem(method, error) {
-  const message = getLocationErrorMessage(error);
-  console.warn(`Geolocation ${method} failed: ${message}`);
-}
-
 function updateRefreshCountdown() {
   updatePanelNextRefresh(nextForecastUpdateAt);
-}
-
-function getLocationErrorMessage(error) {
-  if (error?.code === 1) {
-    return "Location permission denied";
-  }
-  if (error?.code === 2) {
-    return "Location unavailable";
-  }
-  if (error?.code === 3) {
-    return "Location timed out";
-  }
-
-  return error?.message ?? "Location unavailable";
 }
 
 function animate(time = 0) {
