@@ -354,11 +354,7 @@ async function refreshForecast(location) {
 }
 
 function applyForecastPrediction(prediction) {
-  expectedTemperature = THREE.MathUtils.clamp(
-    prediction.temperature,
-    scaleMinimum,
-    scaleMaximum,
-  );
+  expectedTemperature = clampTemperatureToScale(prediction.temperature);
   rainProbability = prediction.rainProbability;
   values.forecastTime.textContent = prediction.forecastTime;
   updateGlowColour();
@@ -431,9 +427,12 @@ async function fetchTemperatureRange(location) {
     throw new Error("Open-Meteo archive response did not include daily.temperature_2m_max values");
   }
 
+  const filteredMinimums = removeStatisticalOutliers(validMinimums);
+  const filteredMaximums = removeStatisticalOutliers(validMaximums);
+
   return {
-    minimum: Math.min(...validMinimums),
-    maximum: Math.max(...validMaximums),
+    minimum: Math.min(...filteredMinimums),
+    maximum: Math.max(...filteredMaximums),
   };
 }
 
@@ -581,6 +580,46 @@ function formatTemperatureWithUnit(temperature) {
 
 function formatPercent(value) {
   return typeof value === "number" ? `${Math.round(value)}%` : "--";
+}
+
+function clampTemperatureToScale(temperature) {
+  return THREE.MathUtils.clamp(temperature, scaleMinimum, scaleMaximum);
+}
+
+function removeStatisticalOutliers(values) {
+  if (values.length < 4) {
+    return values;
+  }
+
+  const sortedValues = [...values].sort((first, second) => first - second);
+  const firstQuartile = getPercentile(sortedValues, 0.25);
+  const thirdQuartile = getPercentile(sortedValues, 0.75);
+  const interquartileRange = thirdQuartile - firstQuartile;
+
+  if (interquartileRange === 0) {
+    return values;
+  }
+
+  const lowerFence = firstQuartile - interquartileRange * 1.5;
+  const upperFence = thirdQuartile + interquartileRange * 1.5;
+  const filteredValues = values.filter(
+    (value) => value >= lowerFence && value <= upperFence,
+  );
+
+  return filteredValues.length > 0 ? filteredValues : values;
+}
+
+function getPercentile(sortedValues, percentile) {
+  const position = (sortedValues.length - 1) * percentile;
+  const lowerIndex = Math.floor(position);
+  const upperIndex = Math.ceil(position);
+
+  if (lowerIndex === upperIndex) {
+    return sortedValues[lowerIndex];
+  }
+
+  const weight = position - lowerIndex;
+  return THREE.MathUtils.lerp(sortedValues[lowerIndex], sortedValues[upperIndex], weight);
 }
 
 function formatPredictionTime(startTime, timezoneAbbreviation) {
