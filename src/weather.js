@@ -1,3 +1,5 @@
+const outlierStandardDeviationLimit = 2;
+
 export async function fetchTemperatureRange(location) {
   const { startDate, endDate } = getLastTwelveMonthDateRange();
   const archiveUrl =
@@ -121,36 +123,24 @@ function removeStatisticalOutliers(values) {
     return values;
   }
 
-  const sortedValues = [...values].sort((first, second) => first - second);
-  const firstQuartile = getPercentile(sortedValues, 0.25);
-  const thirdQuartile = getPercentile(sortedValues, 0.75);
-  const interquartileRange = thirdQuartile - firstQuartile;
+  const average = values.reduce((total, value) => total + value, 0) / values.length;
+  const variance = values.reduce(
+    (total, value) => total + (value - average) ** 2,
+    0,
+  ) / values.length;
+  const standardDeviation = Math.sqrt(variance);
 
-  if (interquartileRange === 0) {
+  if (standardDeviation === 0) {
     return values;
   }
 
-  const lowerFence = firstQuartile - interquartileRange * 1.5;
-  const upperFence = thirdQuartile + interquartileRange * 1.5;
+  const lowerFence = average - standardDeviation * outlierStandardDeviationLimit;
+  const upperFence = average + standardDeviation * outlierStandardDeviationLimit;
   const filteredValues = values.filter(
     (value) => value >= lowerFence && value <= upperFence,
   );
 
   return filteredValues.length > 0 ? filteredValues : values;
-}
-
-function getPercentile(sortedValues, percentile) {
-  const position = (sortedValues.length - 1) * percentile;
-  const lowerIndex = Math.floor(position);
-  const upperIndex = Math.ceil(position);
-
-  if (lowerIndex === upperIndex) {
-    return sortedValues[lowerIndex];
-  }
-
-  const weight = position - lowerIndex;
-  return sortedValues[lowerIndex] +
-    (sortedValues[upperIndex] - sortedValues[lowerIndex]) * weight;
 }
 
 function isNumber(value) {
