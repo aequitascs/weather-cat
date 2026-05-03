@@ -114,7 +114,7 @@ export function createWeatherScene(canvas, { offSphereColour, glowFadeDurationMs
     }
 
     glowTransition = {
-      startedAt: performance.now(),
+      startedAt: null,
       duration: glowFadeDurationMs,
       from: {
         color: renderedGlowState.color.clone(),
@@ -152,6 +152,10 @@ export function createWeatherScene(canvas, { offSphereColour, glowFadeDurationMs
       return;
     }
 
+    if (glowTransition.startedAt === null) {
+      glowTransition.startedAt = time;
+    }
+
     const progress = THREE.MathUtils.clamp(
       (time - glowTransition.startedAt) / glowTransition.duration,
       0,
@@ -176,14 +180,16 @@ export function createWeatherScene(canvas, { offSphereColour, glowFadeDurationMs
         glowTransition.to.lightIntensity,
         easedProgress,
       ),
-    });
+    }, { render: false });
 
     if (progress === 1) {
       glowTransition = null;
     }
+
+    render();
   }
 
-  function applyGlowState(glowState) {
+  function applyGlowState(glowState, { render: shouldRender = true } = {}) {
     renderedGlowState.color.copy(glowState.color);
     renderedGlowState.emissiveIntensity = glowState.emissiveIntensity;
     renderedGlowState.lightIntensity = glowState.lightIntensity;
@@ -193,7 +199,10 @@ export function createWeatherScene(canvas, { offSphereColour, glowFadeDurationMs
     sphereMaterial.emissiveIntensity = glowState.emissiveIntensity;
     coreLight.color.copy(glowState.color);
     coreLight.intensity = glowState.lightIntensity;
-    render();
+
+    if (shouldRender) {
+      render();
+    }
   }
 
   function resize() {
