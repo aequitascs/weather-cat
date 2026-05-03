@@ -2,11 +2,13 @@ import * as THREE from "three";
 
 export function createWeatherScene(canvas, { offSphereColour, glowFadeDurationMs }) {
   let glowTransition = null;
+  let animationFrameId = null;
   const renderedGlowState = {
     color: new THREE.Color(offSphereColour),
     emissiveIntensity: 0,
     lightIntensity: 0,
   };
+  const glowStateTolerance = 0.0001;
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x050609, 0.055);
@@ -85,6 +87,12 @@ export function createWeatherScene(canvas, { offSphereColour, glowFadeDurationMs
   scene.add(fillLight);
 
   function startGlowTransition(targetState) {
+    if (glowStatesMatch(renderedGlowState, targetState)) {
+      clearGlowTransition();
+      applyGlowState(targetState);
+      return;
+    }
+
     glowTransition = {
       startedAt: performance.now(),
       duration: glowFadeDurationMs,
@@ -99,6 +107,24 @@ export function createWeatherScene(canvas, { offSphereColour, glowFadeDurationMs
         lightIntensity: targetState.lightIntensity,
       },
     };
+    requestTransitionFrame();
+  }
+
+  function requestTransitionFrame() {
+    if (animationFrameId !== null) {
+      return;
+    }
+
+    animationFrameId = requestAnimationFrame(renderTransitionFrame);
+  }
+
+  function renderTransitionFrame(time) {
+    animationFrameId = null;
+    updateGlowTransition(time);
+
+    if (glowTransition) {
+      requestTransitionFrame();
+    }
   }
 
   function updateGlowTransition(time) {
@@ -147,6 +173,7 @@ export function createWeatherScene(canvas, { offSphereColour, glowFadeDurationMs
     sphereMaterial.emissiveIntensity = glowState.emissiveIntensity;
     coreLight.color.copy(glowState.color);
     coreLight.intensity = glowState.lightIntensity;
+    render();
   }
 
   function resize() {
@@ -155,13 +182,11 @@ export function createWeatherScene(canvas, { offSphereColour, glowFadeDurationMs
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height);
+    render();
   }
 
-  function animate(time = 0) {
-    updateGlowTransition(time);
-
+  function render() {
     renderer.render(scene, camera);
-    requestAnimationFrame(animate);
   }
 
   function getRenderedHex() {
@@ -170,13 +195,25 @@ export function createWeatherScene(canvas, { offSphereColour, glowFadeDurationMs
 
   function clearGlowTransition() {
     glowTransition = null;
+    if (animationFrameId !== null) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    }
+  }
+
+  function glowStatesMatch(firstState, secondState) {
+    return (
+      firstState.color.distanceTo(secondState.color) <= glowStateTolerance &&
+      Math.abs(firstState.emissiveIntensity - secondState.emissiveIntensity) <= glowStateTolerance &&
+      Math.abs(firstState.lightIntensity - secondState.lightIntensity) <= glowStateTolerance
+    );
   }
 
   return {
-    animate,
     applyGlowState,
     clearGlowTransition,
     getRenderedHex,
+    render,
     resize,
     startGlowTransition,
   };

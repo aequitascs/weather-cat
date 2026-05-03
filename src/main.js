@@ -72,8 +72,9 @@ const forecastCycle = createForecastCycle({
 window.addEventListener("resize", weatherScene.resize);
 initializeOffGlowState();
 initializeWeather();
-setInterval(updateRefreshCountdown, 1000);
-weatherScene.animate();
+if (isDebugMode) {
+  setInterval(updateRefreshCountdown, 1000);
+}
 
 function initializeOffGlowState() {
   weatherScene.applyGlowState(offGlowState);
