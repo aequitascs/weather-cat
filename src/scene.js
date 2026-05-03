@@ -76,6 +76,25 @@ export function createWeatherScene(canvas, { offSphereColour, glowFadeDurationMs
   pedestalBowl.receiveShadow = true;
   group.add(pedestalBowl);
 
+  const tableTexture = createOakTexture();
+  tableTexture.colorSpace = THREE.SRGBColorSpace;
+  tableTexture.wrapS = THREE.RepeatWrapping;
+  tableTexture.wrapT = THREE.RepeatWrapping;
+  tableTexture.repeat.set(2, 1);
+
+  const tableMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    map: tableTexture,
+    roughness: 0.72,
+    metalness: 0,
+  });
+  const tableTop = new THREE.Mesh(
+    new THREE.CylinderGeometry(8.5, 8.5, 0.18, 160),
+    tableMaterial,
+  );
+  tableTop.position.y = -1;
+  group.add(tableTop);
+
   const coreLight = new THREE.PointLight(offSphereColour, 0, 9, 1.8);
   coreLight.position.set(0, 0.79, 0.6);
   scene.add(coreLight);
@@ -226,4 +245,37 @@ export function createWeatherScene(canvas, { offSphereColour, glowFadeDurationMs
     resize,
     startGlowTransition,
   };
+}
+
+function createOakTexture() {
+  const size = 512;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d");
+  const image = context.createImageData(size, size);
+  const lightOak = [156, 106, 53];
+  const darkOak = [72, 43, 22];
+
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const grain = (
+        Math.sin(x * 0.055 + Math.sin(y * 0.018) * 8) * 0.5 +
+        Math.sin(x * 0.16 + y * 0.018) * 0.24 +
+        Math.sin((x + y) * 0.025) * 0.18
+      );
+      const ring = Math.sin((x + Math.sin(y * 0.03) * 18) * 0.018) * 0.16;
+      const noise = (Math.random() - 0.5) * 0.2;
+      const mix = THREE.MathUtils.clamp(0.48 + grain * 0.3 + ring * 1.25 + noise, 0, 1);
+      const index = (y * size + x) * 4;
+
+      image.data[index] = Math.round(THREE.MathUtils.lerp(darkOak[0], lightOak[0], mix));
+      image.data[index + 1] = Math.round(THREE.MathUtils.lerp(darkOak[1], lightOak[1], mix));
+      image.data[index + 2] = Math.round(THREE.MathUtils.lerp(darkOak[2], lightOak[2], mix));
+      image.data[index + 3] = 255;
+    }
+  }
+
+  context.putImageData(image, 0, 0);
+  return new THREE.CanvasTexture(canvas);
 }
