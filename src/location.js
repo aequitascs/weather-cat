@@ -1,6 +1,7 @@
 import { fetchJson } from "./weather.js";
 
 const browserLocationMaximumAgeMs = 5 * 60 * 1000;
+let hasResolvedLocation = false;
 
 export class LocationUnavailableError extends Error {
   constructor() {
@@ -13,6 +14,10 @@ export async function getCurrentLocation({
   browserLocationTimeoutMs,
   onLocationUpdate,
 } = {}) {
+  if (hasResolvedLocation) {
+    return getSequentialLocation({ browserLocationTimeoutMs });
+  }
+
   const browserLocationPromise = getLoggedBrowserLocation({
     timeout: browserLocationTimeoutMs,
   });
@@ -37,6 +42,18 @@ export async function getCurrentLocation({
     return firstLocation;
   } catch {
     throw new LocationUnavailableError();
+  }
+}
+
+async function getSequentialLocation({ browserLocationTimeoutMs } = {}) {
+  try {
+    return await getLoggedBrowserLocation({ timeout: browserLocationTimeoutMs });
+  } catch {
+    try {
+      return await getLoggedIpLocation();
+    } catch {
+      throw new LocationUnavailableError();
+    }
   }
 }
 
@@ -97,6 +114,7 @@ export function getLocationErrorMessage(error) {
 async function getLoggedBrowserLocation({ timeout } = {}) {
   try {
     const location = await getBrowserLocation({ timeout });
+    hasResolvedLocation = true;
     logGeolocationSuccess("browser", location);
     return location;
   } catch (error) {
@@ -108,6 +126,7 @@ async function getLoggedBrowserLocation({ timeout } = {}) {
 async function getLoggedIpLocation() {
   try {
     const location = await getIpLocation();
+    hasResolvedLocation = true;
     logGeolocationSuccess("ip", location);
     return location;
   } catch (error) {
