@@ -8,7 +8,8 @@ export function createWeatherScene(canvas, { offSphereColour, glowFadeDurationMs
     emissiveIntensity: 0,
     lightIntensity: 0,
   };
-  const glowStateTolerance = 0.0001;
+  const glowColorTolerance = 0.01;
+  const glowIntensityTolerance = 0.05;
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x050609, 0.055);
@@ -203,9 +204,17 @@ export function createWeatherScene(canvas, { offSphereColour, glowFadeDurationMs
 
   function glowStatesMatch(firstState, secondState) {
     return (
-      firstState.color.distanceTo(secondState.color) <= glowStateTolerance &&
-      Math.abs(firstState.emissiveIntensity - secondState.emissiveIntensity) <= glowStateTolerance &&
-      Math.abs(firstState.lightIntensity - secondState.lightIntensity) <= glowStateTolerance
+      getColorDistance(firstState.color, secondState.color) <= glowColorTolerance &&
+      Math.abs(firstState.emissiveIntensity - secondState.emissiveIntensity) <= glowIntensityTolerance &&
+      Math.abs(firstState.lightIntensity - secondState.lightIntensity) <= glowIntensityTolerance
+    );
+  }
+
+  function getColorDistance(firstColor, secondColor) {
+    return Math.hypot(
+      firstColor.r - secondColor.r,
+      firstColor.g - secondColor.g,
+      firstColor.b - secondColor.b,
     );
   }
 
