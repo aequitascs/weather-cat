@@ -9,7 +9,7 @@ const scaleMax = document.querySelector("#colour-scale-max");
 const context = colourMap.getContext("2d");
 const { width, height } = colourMap;
 const image = context.createImageData(width, height);
-const browserLocationTimeoutMs = 3000;
+const browserLocationTimeoutMs = 10000;
 const fallbackTemperatureRange = {
   minimum: 0,
   maximum: 40,

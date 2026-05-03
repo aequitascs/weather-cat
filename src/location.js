@@ -1,6 +1,5 @@
 import { fetchJson } from "./weather.js";
 
-const cachedLocationStorageKey = "weather-cat-location";
 const browserLocationMaximumAgeMs = 5 * 60 * 1000;
 
 export class LocationUnavailableError extends Error {
@@ -14,31 +13,6 @@ export async function getCurrentLocation({
   browserLocationTimeoutMs,
   onLocationUpdate,
 } = {}) {
-  const cachedLocation = getCachedLocation();
-
-  if (cachedLocation) {
-    logGeolocationSuccess("cache", cachedLocation);
-    getLoggedBrowserLocation({ timeout: browserLocationTimeoutMs })
-      .then((browserLocation) => {
-        if (locationsDiffer(cachedLocation, browserLocation)) {
-          notifyLocationUpdate(onLocationUpdate, browserLocation);
-        }
-      })
-      .catch(() => {});
-
-    if (cachedLocation.source !== "browser") {
-      getLoggedIpLocation()
-        .then((ipLocation) => {
-          if (locationsDiffer(cachedLocation, ipLocation)) {
-            notifyLocationUpdate(onLocationUpdate, ipLocation);
-          }
-        })
-        .catch(() => {});
-    }
-
-    return cachedLocation;
-  }
-
   const browserLocationPromise = getLoggedBrowserLocation({
     timeout: browserLocationTimeoutMs,
   });
@@ -123,7 +97,6 @@ export function getLocationErrorMessage(error) {
 async function getLoggedBrowserLocation({ timeout } = {}) {
   try {
     const location = await getBrowserLocation({ timeout });
-    saveCachedLocation(location);
     logGeolocationSuccess("browser", location);
     return location;
   } catch (error) {
@@ -135,7 +108,6 @@ async function getLoggedBrowserLocation({ timeout } = {}) {
 async function getLoggedIpLocation() {
   try {
     const location = await getIpLocation();
-    saveCachedLocation(location);
     logGeolocationSuccess("ip", location);
     return location;
   } catch (error) {
@@ -199,41 +171,4 @@ function logGeolocationSuccess(method, location) {
   console.info(
     `Geolocation ${method} succeeded: ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`,
   );
-}
-
-function getCachedLocation() {
-  try {
-    const cachedLocation = JSON.parse(localStorage.getItem(cachedLocationStorageKey));
-    if (
-      !cachedLocation ||
-      !Number.isFinite(cachedLocation.latitude) ||
-      !Number.isFinite(cachedLocation.longitude)
-    ) {
-      return null;
-    }
-
-    return {
-      latitude: cachedLocation.latitude,
-      longitude: cachedLocation.longitude,
-      source: cachedLocation.source === "browser" ? "browser" : "ip",
-    };
-  } catch {
-    return null;
-  }
-}
-
-function saveCachedLocation(location) {
-  try {
-    localStorage.setItem(
-      cachedLocationStorageKey,
-      JSON.stringify({
-        latitude: location.latitude,
-        longitude: location.longitude,
-        source: location.source,
-        savedAt: Date.now(),
-      }),
-    );
-  } catch {
-    // Ignore storage failures; geolocation can still proceed for this session.
-  }
 }

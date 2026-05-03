@@ -32,8 +32,8 @@ const isDebugMode = new URLSearchParams(window.location.search).get("mode") === 
 setDebugPanelVisible(isDebugMode);
 
 const forecastRefreshIntervalMs = 5 * 60 * 1000;
-const initialBrowserLocationTimeoutMs = 3000;
-const browserLocationTimeoutMs = 3000;
+const initialBrowserLocationTimeoutMs = 10000;
+const browserLocationTimeoutMs = 10000;
 const rainProbabilityMinimum = 0;
 const rainProbabilityMaximum = 100;
 const offSphereColour = 0x666a73;
