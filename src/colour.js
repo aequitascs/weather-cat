@@ -9,7 +9,7 @@ const scaleMax = document.querySelector("#colour-scale-max");
 const context = colourMap.getContext("2d");
 const { width, height } = colourMap;
 const image = context.createImageData(width, height);
-const browserLocationTimeoutMs = 10000;
+const browserLocationTimeoutMs = 3000;
 const fallbackTemperatureRange = {
   minimum: 0,
   maximum: 40,
@@ -21,13 +21,20 @@ updateColourMapScale();
 
 async function updateColourMapScale() {
   try {
-    const currentLocation = await getCurrentLocation({ browserLocationTimeoutMs });
-    const temperatureRange = await fetchTemperatureRange(currentLocation);
-    renderColourMap(temperatureRange);
-    updateScaleLabels(temperatureRange);
+    const currentLocation = await getCurrentLocation({
+      browserLocationTimeoutMs,
+      onLocationUpdate: updateColourMapForLocation,
+    });
+    await updateColourMapForLocation(currentLocation);
   } catch (error) {
     console.warn("Could not load colour map temperature scale from Open-Meteo.", error);
   }
+}
+
+async function updateColourMapForLocation(location) {
+  const temperatureRange = await fetchTemperatureRange(location);
+  renderColourMap(temperatureRange);
+  updateScaleLabels(temperatureRange);
 }
 
 function renderColourMap(temperatureRange) {

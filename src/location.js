@@ -1,5 +1,8 @@
 import { fetchJson } from "./weather.js";
 
+const cachedLocationStorageKey = "weather-cat-location";
+const browserLocationMaximumAgeMs = 5 * 60 * 1000;
+
 export class LocationUnavailableError extends Error {
   constructor() {
     super("Location unavailable");
@@ -7,20 +10,78 @@ export class LocationUnavailableError extends Error {
   }
 }
 
-export async function getCurrentLocation({ browserLocationTimeoutMs } = {}) {
-  try {
-    return await getBrowserLocation({ timeout: browserLocationTimeoutMs });
-  } catch (error) {
-    logGeolocationProblem("browser", error);
+export async function getCurrentLocation({
+  browserLocationTimeoutMs,
+  onLocationUpdate,
+} = {}) {
+  const cachedLocation = getCachedLocation();
+
+  if (cachedLocation) {
+    logGeolocationSuccess("cache", cachedLocation);
+    getLoggedBrowserLocation({ timeout: browserLocationTimeoutMs })
+      .then((browserLocation) => {
+        if (locationsDiffer(cachedLocation, browserLocation)) {
+          notifyLocationUpdate(onLocationUpdate, browserLocation);
+        }
+      })
+      .catch(() => {});
+
+    if (cachedLocation.source !== "browser") {
+      getLoggedIpLocation()
+        .then((ipLocation) => {
+          if (locationsDiffer(cachedLocation, ipLocation)) {
+            notifyLocationUpdate(onLocationUpdate, ipLocation);
+          }
+        })
+        .catch(() => {});
+    }
+
+    return cachedLocation;
   }
 
-  try {
-    return await getIpLocation();
-  } catch (error) {
-    logGeolocationProblem("ip", error);
-  }
+  const browserLocationPromise = getLoggedBrowserLocation({
+    timeout: browserLocationTimeoutMs,
+  });
+  const ipLocationPromise = getLoggedIpLocation();
 
-  throw new LocationUnavailableError();
+  try {
+    const firstLocation = await getFirstSuccessfulLocation([
+      browserLocationPromise,
+      ipLocationPromise,
+    ]);
+
+    if (firstLocation.source === "ip") {
+      browserLocationPromise
+        .then((browserLocation) => {
+          if (locationsDiffer(firstLocation, browserLocation)) {
+            notifyLocationUpdate(onLocationUpdate, browserLocation);
+          }
+        })
+        .catch(() => {});
+    }
+
+    return firstLocation;
+  } catch {
+    throw new LocationUnavailableError();
+  }
+}
+
+function getFirstSuccessfulLocation(locationPromises) {
+  return new Promise((resolve, reject) => {
+    let failureCount = 0;
+
+    locationPromises.forEach((locationPromise) => {
+      locationPromise
+        .then(resolve)
+        .catch(() => {
+          failureCount += 1;
+
+          if (failureCount === locationPromises.length) {
+            reject(new LocationUnavailableError());
+          }
+        });
+    });
+  });
 }
 
 export function locationsMatch(firstLocation, secondLocation) {
@@ -28,6 +89,21 @@ export function locationsMatch(firstLocation, secondLocation) {
     firstLocation.latitude === secondLocation.latitude &&
     firstLocation.longitude === secondLocation.longitude
   );
+}
+
+function locationsDiffer(firstLocation, secondLocation) {
+  return !locationsMatch(firstLocation, secondLocation) ||
+    firstLocation.source !== secondLocation.source;
+}
+
+function notifyLocationUpdate(onLocationUpdate, location) {
+  if (!onLocationUpdate) {
+    return;
+  }
+
+  Promise.resolve(onLocationUpdate(location)).catch((error) => {
+    console.warn("Could not refresh after updated geolocation.", error);
+  });
 }
 
 export function getLocationErrorMessage(error) {
@@ -42,6 +118,30 @@ export function getLocationErrorMessage(error) {
   }
 
   return error?.message ?? "Location unavailable";
+}
+
+async function getLoggedBrowserLocation({ timeout } = {}) {
+  try {
+    const location = await getBrowserLocation({ timeout });
+    saveCachedLocation(location);
+    logGeolocationSuccess("browser", location);
+    return location;
+  } catch (error) {
+    logGeolocationProblem("browser", error);
+    throw error;
+  }
+}
+
+async function getLoggedIpLocation() {
+  try {
+    const location = await getIpLocation();
+    saveCachedLocation(location);
+    logGeolocationSuccess("ip", location);
+    return location;
+  } catch (error) {
+    logGeolocationProblem("ip", error);
+    throw error;
+  }
 }
 
 function getBrowserLocation({ timeout } = {}) {
@@ -67,7 +167,7 @@ function getBrowserLocation({ timeout } = {}) {
       (error) => reject(error),
       {
         enableHighAccuracy: false,
-        maximumAge: 0,
+        maximumAge: browserLocationMaximumAgeMs,
         timeout,
       },
     );
@@ -93,4 +193,47 @@ async function getIpLocation() {
 function logGeolocationProblem(method, error) {
   const message = getLocationErrorMessage(error);
   console.warn(`Geolocation ${method} failed: ${message}`);
+}
+
+function logGeolocationSuccess(method, location) {
+  console.info(
+    `Geolocation ${method} succeeded: ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`,
+  );
+}
+
+function getCachedLocation() {
+  try {
+    const cachedLocation = JSON.parse(localStorage.getItem(cachedLocationStorageKey));
+    if (
+      !cachedLocation ||
+      !Number.isFinite(cachedLocation.latitude) ||
+      !Number.isFinite(cachedLocation.longitude)
+    ) {
+      return null;
+    }
+
+    return {
+      latitude: cachedLocation.latitude,
+      longitude: cachedLocation.longitude,
+      source: cachedLocation.source === "browser" ? "browser" : "ip",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedLocation(location) {
+  try {
+    localStorage.setItem(
+      cachedLocationStorageKey,
+      JSON.stringify({
+        latitude: location.latitude,
+        longitude: location.longitude,
+        source: location.source,
+        savedAt: Date.now(),
+      }),
+    );
+  } catch {
+    // Ignore storage failures; geolocation can still proceed for this session.
+  }
 }

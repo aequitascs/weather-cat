@@ -32,8 +32,8 @@ const isDebugMode = new URLSearchParams(window.location.search).get("mode") === 
 setDebugPanelVisible(isDebugMode);
 
 const forecastRefreshIntervalMs = 5 * 60 * 1000;
-const initialBrowserLocationTimeoutMs = 10000;
-const browserLocationTimeoutMs = 10000;
+const initialBrowserLocationTimeoutMs = 3000;
+const browserLocationTimeoutMs = 3000;
 const rainProbabilityMinimum = 0;
 const rainProbabilityMaximum = 100;
 const offSphereColour = 0x666a73;
@@ -100,7 +100,14 @@ async function initializeWeather() {
 }
 
 async function refreshWeatherFromCurrentLocation({ browserLocationTimeoutMs } = {}) {
-  const refreshedLocation = await getCurrentLocation({ browserLocationTimeoutMs });
+  const refreshedLocation = await getCurrentLocation({
+    browserLocationTimeoutMs,
+    onLocationUpdate: refreshWeatherForLocation,
+  });
+  await refreshWeatherForLocation(refreshedLocation);
+}
+
+async function refreshWeatherForLocation(refreshedLocation) {
   const locationChanged = !weatherState.currentLocation ||
     !locationsMatch(weatherState.currentLocation, refreshedLocation);
   weatherState.currentLocation = refreshedLocation;
@@ -121,6 +128,7 @@ async function refreshForecast(location) {
     throw new Error("Open-Meteo response did not include an hourly temperature forecast");
   }
 
+  logForecastPredictions(predictions);
   forecastCycle.setPredictions(predictions);
   applyForecastPrediction(forecastCycle.getCurrentPrediction());
   forecastCycle.start();
@@ -137,6 +145,18 @@ function applyForecastPrediction(prediction) {
   weatherState.rainProbability = prediction.rainProbability;
   updatePanelForecastTime(prediction.forecastTime);
   updateGlowColour();
+}
+
+function logForecastPredictions(predictions) {
+  const temperatureSummary = predictions
+    .map((prediction) => `${prediction.offsetHours}h ${formatTemperatureWithUnit(prediction.temperature)}`)
+    .join(", ");
+  const rainSummary = predictions
+    .map((prediction) => `${prediction.offsetHours}h ${formatPercent(prediction.rainProbability)}`)
+    .join(", ");
+
+  console.info(`Forecast apparent temperatures: ${temperatureSummary}`);
+  console.info(`Forecast rain likelihood: ${rainSummary}`);
 }
 
 function updateGlowColour() {
@@ -217,4 +237,16 @@ function scheduleForecastRefresh() {
 
 function updateRefreshCountdown() {
   updatePanelNextRefresh(weatherState.nextForecastUpdateAt);
+}
+
+function formatTemperature(temperature) {
+  return Number.isInteger(temperature) ? String(temperature) : temperature.toFixed(1);
+}
+
+function formatTemperatureWithUnit(temperature) {
+  return `${formatTemperature(temperature)}°C`;
+}
+
+function formatPercent(value) {
+  return typeof value === "number" ? `${Math.round(value)}%` : "--";
 }
