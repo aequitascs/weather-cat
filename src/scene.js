@@ -84,30 +84,6 @@ export function createWeatherScene(canvas, { offSphereColour, glowFadeDurationMs
   const fillLight = new THREE.AmbientLight(0x516070, 0.46);
   scene.add(fillLight);
 
-  const starGeometry = new THREE.BufferGeometry();
-  const starCount = 700;
-  const starPositions = new Float32Array(starCount * 3);
-  for (let i = 0; i < starCount; i += 1) {
-    const radius = 14 + Math.random() * 24;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(THREE.MathUtils.randFloatSpread(2));
-    starPositions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
-    starPositions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-    starPositions[i * 3 + 2] = radius * Math.cos(phi);
-  }
-  starGeometry.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
-  const stars = new THREE.Points(
-    starGeometry,
-    new THREE.PointsMaterial({
-      color: 0xe8f6ff,
-      size: 0.035,
-      transparent: true,
-      opacity: 0.62,
-      depthWrite: false,
-    }),
-  );
-  scene.add(stars);
-
   function startGlowTransition(targetState) {
     glowTransition = {
       startedAt: performance.now(),
@@ -182,11 +158,6 @@ export function createWeatherScene(canvas, { offSphereColour, glowFadeDurationMs
   }
 
   function animate(time = 0) {
-    const seconds = time * 0.001;
-    group.rotation.y = seconds * 0.24;
-    group.rotation.x = Math.sin(seconds * 0.45) * 0.06;
-    stars.rotation.y = seconds * 0.015;
-    stars.rotation.x = seconds * 0.006;
     updateGlowTransition(time);
 
     renderer.render(scene, camera);
