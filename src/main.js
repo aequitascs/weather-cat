@@ -39,10 +39,10 @@ const rainProbabilityMaximum = 100;
 const offSphereColour = 0x666a73;
 const activeSphereEmissiveIntensity = 1.45;
 const activeCoreLightIntensity = 26;
-const glowFadeDurationMs = 5000;
+const glowFadeDurationMs = 4000;
 const forecastCycleOffsets = [1, 2, 3];
 const forecastCycleSequence = [0, 1, 2, 1];
-const forecastCycleIntervalMs = glowFadeDurationMs;
+const forecastCycleIntervalMs = 5000;
 const offGlowState = {
   color: new THREE.Color(offSphereColour),
   emissiveIntensity: 0,
