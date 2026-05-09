@@ -1,16 +1,20 @@
-export function createForecastCycle({ sequence, intervalMs, onPrediction }) {
+export function createForecastCycle({ hourSequence, intervalMs, onPrediction }) {
   let timer = null;
   let sequenceIndex = 0;
   let predictions = [];
+  let predictionsByHour = new Map();
 
   function setPredictions(nextPredictions) {
     predictions = nextPredictions;
-    sequenceIndex %= sequence.length;
+    predictionsByHour = new Map(
+      predictions.map((prediction) => [prediction.offsetHours, prediction]),
+    );
+    sequenceIndex %= hourSequence.length;
   }
 
   function getCurrentPrediction() {
-    const predictionIndex = sequence[sequenceIndex];
-    return predictions[predictionIndex] ?? predictions[0];
+    const offsetHours = hourSequence[sequenceIndex];
+    return predictionsByHour.get(offsetHours) ?? predictions[0];
   }
 
   function start() {
@@ -26,6 +30,7 @@ export function createForecastCycle({ sequence, intervalMs, onPrediction }) {
   function reset() {
     clear();
     predictions = [];
+    predictionsByHour = new Map();
     sequenceIndex = 0;
   }
 
@@ -34,7 +39,7 @@ export function createForecastCycle({ sequence, intervalMs, onPrediction }) {
       return;
     }
 
-    sequenceIndex = (sequenceIndex + 1) % sequence.length;
+    sequenceIndex = (sequenceIndex + 1) % hourSequence.length;
     onPrediction(getCurrentPrediction());
   }
 

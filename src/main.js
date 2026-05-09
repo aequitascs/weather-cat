@@ -39,10 +39,11 @@ const rainProbabilityMaximum = 100;
 const offSphereColour = 0x666a73;
 const activeSphereEmissiveIntensity = 1.45;
 const activeCoreLightIntensity = 26;
-const glowFadeDurationMs = 4900;
-const forecastCycleOffsets = [1, 2, 3];
-const forecastCycleSequence = [0, 1, 2, 1];
 const forecastCycleIntervalMs = 5000;
+const glowSettleDurationMs = 100;
+const glowFadeDurationMs = forecastCycleIntervalMs - glowSettleDurationMs;
+const forecastCycleHourSequence = [1, 2, 3, 2];
+const forecastLookupHourOffsets = [...new Set(forecastCycleHourSequence)];
 const offGlowState = {
   color: new THREE.Color(offSphereColour),
   emissiveIntensity: 0,
@@ -64,7 +65,7 @@ const weatherScene = createWeatherScene(canvas, {
   glowFadeDurationMs,
 });
 const forecastCycle = createForecastCycle({
-  sequence: forecastCycleSequence,
+  hourSequence: forecastCycleHourSequence,
   intervalMs: forecastCycleIntervalMs,
   onPrediction: applyForecastPrediction,
 });
@@ -123,7 +124,7 @@ async function refreshWeatherForLocation(refreshedLocation) {
 }
 
 async function refreshForecast(location) {
-  const predictions = await fetchForecastPredictions(location, forecastCycleOffsets);
+  const predictions = await fetchForecastPredictions(location, forecastLookupHourOffsets);
   if (predictions.length === 0) {
     throw new Error("Open-Meteo response did not include an hourly temperature forecast");
   }
