@@ -50,6 +50,7 @@ export async function getIpLocation() {
         latitude: Number(latitude.toFixed(4)),
         longitude: Number(longitude.toFixed(4)),
         source: "ip",
+        lookupSource: provider.name,
       };
       storeCachedIpLocation(location);
       return location;
@@ -75,6 +76,7 @@ function getCachedIpLocation() {
         latitude: cachedLocation.latitude,
         longitude: cachedLocation.longitude,
         source: "ip",
+        lookupSource: "cache",
       };
     }
   } catch {

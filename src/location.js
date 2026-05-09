@@ -171,7 +171,11 @@ function logGeolocationProblem(method, error) {
 }
 
 function logGeolocationSuccess(method, location) {
+  const lookupDetails = method === "ip" && location.lookupSource
+    ? ` via ${location.lookupSource}`
+    : "";
+
   console.info(
-    `Geolocation ${method} succeeded: ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`,
+    `Geolocation ${method}${lookupDetails} succeeded: ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`,
   );
 }
