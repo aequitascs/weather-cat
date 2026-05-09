@@ -1,6 +1,8 @@
 import { fetchJson } from "./weather.js";
 
 const browserLocationMaximumAgeMs = 5 * 60 * 1000;
+const ipLocationCacheDurationMs = 60 * 60 * 1000;
+const ipLocationCacheKey = "weatherCat.ipLocation";
 const ipLocationProviders = [
   {
     name: "GeoJS",
@@ -192,6 +194,11 @@ function getBrowserLocation({ timeout } = {}) {
 }
 
 async function getIpLocation() {
+  const cachedLocation = getCachedIpLocation();
+  if (cachedLocation) {
+    return cachedLocation;
+  }
+
   const errors = [];
 
   for (const provider of ipLocationProviders) {
@@ -203,17 +210,53 @@ async function getIpLocation() {
         throw new Error(`${provider.name} response did not include latitude and longitude`);
       }
 
-      return {
+      const location = {
         latitude: Number(latitude.toFixed(4)),
         longitude: Number(longitude.toFixed(4)),
         source: "ip",
       };
+      storeCachedIpLocation(location);
+      return location;
     } catch (error) {
       errors.push(`${provider.name}: ${getLocationErrorMessage(error)}`);
     }
   }
 
   throw new Error(`IP geolocation unavailable (${errors.join("; ")})`);
+}
+
+function getCachedIpLocation() {
+  try {
+    const cachedLocation = JSON.parse(localStorage.getItem(ipLocationCacheKey) ?? "null");
+
+    if (
+      Number.isFinite(cachedLocation?.latitude) &&
+      Number.isFinite(cachedLocation?.longitude) &&
+      Number.isFinite(cachedLocation?.cachedAt) &&
+      Date.now() - cachedLocation.cachedAt < ipLocationCacheDurationMs
+    ) {
+      return {
+        latitude: cachedLocation.latitude,
+        longitude: cachedLocation.longitude,
+        source: "ip",
+      };
+    }
+  } catch {
+    localStorage.removeItem(ipLocationCacheKey);
+  }
+
+  return null;
+}
+
+function storeCachedIpLocation(location) {
+  localStorage.setItem(
+    ipLocationCacheKey,
+    JSON.stringify({
+      latitude: location.latitude,
+      longitude: location.longitude,
+      cachedAt: Date.now(),
+    }),
+  );
 }
 
 function logGeolocationProblem(method, error) {
