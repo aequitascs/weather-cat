@@ -1,6 +1,32 @@
 import { fetchJson } from "./weather.js";
 
 const browserLocationMaximumAgeMs = 5 * 60 * 1000;
+const ipLocationProviders = [
+  {
+    name: "GeoJS",
+    url: "https://get.geojs.io/v1/ip/geo.json",
+    getCoordinates: (ipLocation) => ({
+      latitude: Number(ipLocation.latitude),
+      longitude: Number(ipLocation.longitude),
+    }),
+  },
+  {
+    name: "Kamero",
+    url: "https://geo.kamero.ai/api/geo",
+    getCoordinates: (ipLocation) => ({
+      latitude: Number(ipLocation.latitude),
+      longitude: Number(ipLocation.longitude),
+    }),
+  },
+  {
+    name: "IP geolocation",
+    url: "https://ipapi.co/json/",
+    getCoordinates: (ipLocation) => ({
+      latitude: Number(ipLocation.latitude),
+      longitude: Number(ipLocation.longitude),
+    }),
+  },
+];
 let hasResolvedLocation = false;
 
 export class LocationUnavailableError extends Error {
@@ -166,19 +192,28 @@ function getBrowserLocation({ timeout } = {}) {
 }
 
 async function getIpLocation() {
-  const ipLocation = await fetchJson("https://ipapi.co/json/", "IP geolocation");
-  const latitude = Number(ipLocation.latitude);
-  const longitude = Number(ipLocation.longitude);
+  const errors = [];
 
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-    throw new Error("IP geolocation response did not include latitude and longitude");
+  for (const provider of ipLocationProviders) {
+    try {
+      const ipLocation = await fetchJson(provider.url, provider.name);
+      const { latitude, longitude } = provider.getCoordinates(ipLocation);
+
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        throw new Error(`${provider.name} response did not include latitude and longitude`);
+      }
+
+      return {
+        latitude: Number(latitude.toFixed(4)),
+        longitude: Number(longitude.toFixed(4)),
+        source: "ip",
+      };
+    } catch (error) {
+      errors.push(`${provider.name}: ${getLocationErrorMessage(error)}`);
+    }
   }
 
-  return {
-    latitude: Number(latitude.toFixed(4)),
-    longitude: Number(longitude.toFixed(4)),
-    source: "ip",
-  };
+  throw new Error(`IP geolocation unavailable (${errors.join("; ")})`);
 }
 
 function logGeolocationProblem(method, error) {
