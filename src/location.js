@@ -1,4 +1,4 @@
-import { getIpLocation } from "./ip-location.js";
+import { cacheIpLocation, getIpLocation } from "./ip-location.js";
 
 const browserLocationMaximumAgeMs = 5 * 60 * 1000;
 let hasResolvedLocation = false;
@@ -114,6 +114,7 @@ export function getLocationErrorMessage(error) {
 async function getLoggedBrowserLocation({ timeout } = {}) {
   try {
     const location = await getBrowserLocation({ timeout });
+    cacheIpLocation(location);
     hasResolvedLocation = true;
     logGeolocationSuccess("browser", location);
     return location;

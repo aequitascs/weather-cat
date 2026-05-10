@@ -62,6 +62,21 @@ export async function getIpLocation() {
   throw new Error(`IP geolocation unavailable (${errors.join("; ")})`);
 }
 
+export function cacheIpLocation(location) {
+  if (
+    !Number.isFinite(location?.latitude) ||
+    !Number.isFinite(location?.longitude)
+  ) {
+    return;
+  }
+
+  storeCachedIpLocation({
+    latitude: Number(location.latitude.toFixed(4)),
+    longitude: Number(location.longitude.toFixed(4)),
+    source: "ip",
+  });
+}
+
 function getCachedIpLocation() {
   try {
     const cachedLocation = JSON.parse(localStorage.getItem(ipLocationCacheKey) ?? "null");
