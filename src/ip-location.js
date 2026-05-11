@@ -73,13 +73,13 @@ export function cacheIpLocation(location) {
   storeCachedIpLocation({
     latitude: Number(location.latitude.toFixed(4)),
     longitude: Number(location.longitude.toFixed(4)),
-    source: "ip",
+    source: location.source === "browser" ? "browser" : "ip",
   });
 }
 
 function getCachedIpLocation() {
   try {
-    const cachedLocation = JSON.parse(localStorage.getItem(ipLocationCacheKey) ?? "null");
+    const cachedLocation = readCachedIpLocation();
 
     if (
       Number.isFinite(cachedLocation?.latitude) &&
@@ -90,7 +90,7 @@ function getCachedIpLocation() {
       return {
         latitude: cachedLocation.latitude,
         longitude: cachedLocation.longitude,
-        source: "ip",
+        source: cachedLocation.source === "browser" ? "browser" : "ip",
         lookupSource: "cache",
       };
     }
@@ -105,13 +105,28 @@ function getCachedIpLocation() {
 
 function storeCachedIpLocation(location) {
   try {
+    const cachedLocation = readCachedIpLocation();
+    const cachedBrowserLocationIsFresh =
+      cachedLocation?.source === "browser" &&
+      Number.isFinite(cachedLocation.cachedAt) &&
+      Date.now() - cachedLocation.cachedAt < ipLocationCacheDurationMs;
+
+    if (location.source !== "browser" && cachedBrowserLocationIsFresh) {
+      return;
+    }
+
     localStorage.setItem(
       ipLocationCacheKey,
       JSON.stringify({
         latitude: location.latitude,
         longitude: location.longitude,
+        source: location.source,
         cachedAt: Date.now(),
       }),
     );
   } catch {}
+}
+
+function readCachedIpLocation() {
+  return JSON.parse(localStorage.getItem(ipLocationCacheKey) ?? "null");
 }
