@@ -2,6 +2,7 @@ import { cacheIpLocation, getIpLocation } from "./ip-location.js";
 
 const browserLocationMaximumAgeMs = 5 * 60 * 1000;
 let hasResolvedLocation = false;
+let browserGeolocationDenied = false;
 
 export class LocationUnavailableError extends Error {
   constructor() {
@@ -14,6 +15,14 @@ export async function getCurrentLocation({
   browserLocationTimeoutMs,
   onLocationUpdate,
 } = {}) {
+  if (browserGeolocationDenied) {
+    try {
+      return await getLoggedIpLocation();
+    } catch {
+      throw new LocationUnavailableError();
+    }
+  }
+
   if (hasResolvedLocation) {
     return getSequentialLocation({ browserLocationTimeoutMs });
   }
@@ -46,6 +55,14 @@ export async function getCurrentLocation({
 }
 
 async function getSequentialLocation({ browserLocationTimeoutMs } = {}) {
+  if (browserGeolocationDenied) {
+    try {
+      return await getLoggedIpLocation();
+    } catch {
+      throw new LocationUnavailableError();
+    }
+  }
+
   try {
     return await getLoggedBrowserLocation({ timeout: browserLocationTimeoutMs });
   } catch {
@@ -119,6 +136,10 @@ async function getLoggedBrowserLocation({ timeout } = {}) {
     logGeolocationSuccess("browser", location);
     return location;
   } catch (error) {
+    if (getLocationErrorMessage(error) === "Location permission denied") {
+      browserGeolocationDenied = true;
+    }
+
     logGeolocationProblem("browser", error);
     throw error;
   }
