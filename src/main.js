@@ -8,6 +8,7 @@ import {
   updatePanelLocationMessage,
   updatePanelNextRefresh,
 } from "./debug-panel.js";
+import { createSphereFaviconController } from "./favicon.js";
 import { createForecastCycle } from "./forecast-cycle.js";
 import {
   getGlowColourChannels,
@@ -37,7 +38,7 @@ const browserLocationTimeoutMs = 10000;
 const rainProbabilityMinimum = 0;
 const rainProbabilityMaximum = 100;
 const offSphereColour = 0x666a73;
-const activeSphereEmissiveIntensity = 1.45;
+const activeSphereEmissiveIntensity = 1;
 const activeCoreLightIntensity = 26;
 const forecastCycleIntervalMs = 5000;
 const glowSettleDurationMs = 100;
@@ -69,6 +70,7 @@ const forecastCycle = createForecastCycle({
   intervalMs: forecastCycleIntervalMs,
   onPrediction: applyForecastPrediction,
 });
+const sphereFavicon = createSphereFaviconController();
 
 window.addEventListener("resize", weatherScene.resize);
 initializeOffGlowState();
@@ -82,6 +84,7 @@ function initializeOffGlowState() {
   const hex = weatherScene.getRenderedHex();
   resetPanelGlow(hex);
   document.documentElement.style.setProperty("--accent", hex);
+  sphereFavicon.clearActiveColour();
 }
 
 async function initializeWeather() {
@@ -174,6 +177,7 @@ function updateGlowColour() {
     rainProbability: weatherState.rainProbability,
   });
   document.documentElement.style.setProperty("--accent", hex);
+  sphereFavicon.setActiveColour(hex);
 }
 
 function getWeatherGlowState() {
@@ -207,6 +211,7 @@ function deactivateForecastGlow({ fade = true } = {}) {
   weatherState.rainProbability = null;
   resetPanelGlow(offGlowHex);
   document.documentElement.style.setProperty("--accent", offGlowHex);
+  sphereFavicon.clearActiveColour();
 
   if (fade) {
     weatherScene.startGlowTransition(offGlowState);
