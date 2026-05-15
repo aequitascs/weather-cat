@@ -1,7 +1,7 @@
-export function createSphereFaviconController(linkSelector = "#dynamic-favicon") {
+export function createCatFaviconController(linkSelector = "#dynamic-favicon") {
   const faviconLink = document.querySelector(linkSelector);
   const defaultHref = faviconLink?.getAttribute("href") ?? "./favicon.ico";
-  const catHref = "./apple-touch-icon.png";
+  const catIconHref = "./apple-touch-icon.png";
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
   const size = 64;
@@ -17,7 +17,7 @@ export function createSphereFaviconController(linkSelector = "#dynamic-favicon")
     isCatImageLoaded = true;
     syncFavicon();
   });
-  catImage.src = catHref;
+  catImage.src = catIconHref;
 
   function setActiveColour(hex) {
     activeHex = hex;
@@ -31,14 +31,14 @@ export function createSphereFaviconController(linkSelector = "#dynamic-favicon")
 
   function syncFavicon() {
     if (activeHex) {
-      renderCatFavicon(activeHex);
+      renderWeatherCatFavicon(activeHex);
       return;
     }
 
     renderDefaultFavicon();
   }
 
-  function renderCatFavicon(hex) {
+  function renderWeatherCatFavicon(hex) {
     if (!faviconLink || !context || renderedHref === hex) {
       return;
     }
@@ -63,6 +63,7 @@ export function createSphereFaviconController(linkSelector = "#dynamic-favicon")
     const visited = new Uint8Array(size * size);
     const queue = [];
 
+    // Flood-fill from the edges so only the icon background changes.
     for (let x = 0; x < size; x += 1) {
       queueBackgroundPixel(queue, visited, data, background, x, 0);
       queueBackgroundPixel(queue, visited, data, background, x, size - 1);

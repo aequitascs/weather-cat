@@ -8,7 +8,7 @@ import {
   updatePanelLocationMessage,
   updatePanelNextRefresh,
 } from "./debug-panel.js";
-import { createSphereFaviconController } from "./favicon.js";
+import { createCatFaviconController } from "./favicon.js";
 import { createForecastCycle } from "./forecast-cycle.js";
 import {
   getGlowColourChannels,
@@ -70,7 +70,7 @@ const forecastCycle = createForecastCycle({
   intervalMs: forecastCycleIntervalMs,
   onPrediction: applyForecastPrediction,
 });
-const sphereFavicon = createSphereFaviconController();
+const catFavicon = createCatFaviconController();
 
 window.addEventListener("resize", weatherScene.resize);
 initializeOffGlowState();
@@ -84,7 +84,7 @@ function initializeOffGlowState() {
   const hex = weatherScene.getRenderedHex();
   resetPanelGlow(hex);
   document.documentElement.style.setProperty("--accent", hex);
-  sphereFavicon.clearActiveColour();
+  catFavicon.clearActiveColour();
 }
 
 async function initializeWeather() {
@@ -177,7 +177,7 @@ function updateGlowColour() {
     rainProbability: weatherState.rainProbability,
   });
   document.documentElement.style.setProperty("--accent", hex);
-  sphereFavicon.setActiveColour(hex);
+  catFavicon.setActiveColour(hex);
 }
 
 function getWeatherGlowState() {
@@ -211,7 +211,7 @@ function deactivateForecastGlow({ fade = true } = {}) {
   weatherState.rainProbability = null;
   resetPanelGlow(offGlowHex);
   document.documentElement.style.setProperty("--accent", offGlowHex);
-  sphereFavicon.clearActiveColour();
+  catFavicon.clearActiveColour();
 
   if (fade) {
     weatherScene.startGlowTransition(offGlowState);
