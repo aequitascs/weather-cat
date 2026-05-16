@@ -84,7 +84,7 @@ function initializeOffGlowState() {
   const hex = weatherScene.getRenderedHex();
   resetPanelGlow(hex);
   document.documentElement.style.setProperty("--accent", hex);
-  catFavicon.clearActiveColour();
+  catFavicon.clearBackgroundColours();
 }
 
 async function initializeWeather() {
@@ -133,6 +133,7 @@ async function refreshForecast(location) {
   }
 
   logForecastPredictions(predictions);
+  updateFaviconForecastColours(predictions);
   forecastCycle.setPredictions(predictions);
   applyForecastPrediction(forecastCycle.getCurrentPrediction());
   forecastCycle.start();
@@ -177,17 +178,46 @@ function updateGlowColour() {
     rainProbability: weatherState.rainProbability,
   });
   document.documentElement.style.setProperty("--accent", hex);
-  catFavicon.setActiveColour(hex);
 }
 
 function getWeatherGlowState() {
+  return getGlowState({
+    expectedTemperature: weatherState.expectedTemperature,
+    rainProbability: weatherState.rainProbability,
+  });
+}
+
+function updateFaviconForecastColours(predictions) {
+  const forecastHexes = [...predictions]
+    .sort((firstPrediction, secondPrediction) =>
+      firstPrediction.offsetHours - secondPrediction.offsetHours)
+    .map(getPredictionGlowHex);
+
+  catFavicon.setBackgroundColours(forecastHexes);
+}
+
+function getPredictionGlowHex(prediction) {
+  const expectedTemperature = clampTemperatureToScale(
+    prediction.temperature,
+    weatherState.scaleMinimum,
+    weatherState.scaleMaximum,
+  );
+  const glowState = getGlowState({
+    expectedTemperature,
+    rainProbability: prediction.rainProbability,
+  });
+
+  return `#${glowState.color.getHexString()}`;
+}
+
+function getGlowState({ expectedTemperature, rainProbability }) {
   const temperatureLevel = getTemperatureLevel(
-    weatherState.expectedTemperature,
+    expectedTemperature,
     weatherState.scaleMinimum,
     weatherState.scaleMaximum,
   );
   const rainLevel = getRainLevel(
-    weatherState.rainProbability,
+    rainProbability,
     rainProbabilityMinimum,
     rainProbabilityMaximum,
   );
@@ -211,7 +241,7 @@ function deactivateForecastGlow({ fade = true } = {}) {
   weatherState.rainProbability = null;
   resetPanelGlow(offGlowHex);
   document.documentElement.style.setProperty("--accent", offGlowHex);
-  catFavicon.clearActiveColour();
+  catFavicon.clearBackgroundColours();
 
   if (fade) {
     weatherScene.startGlowTransition(offGlowState);

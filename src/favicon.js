@@ -7,7 +7,7 @@ export function createCatFaviconController(linkSelector = "#dynamic-favicon") {
   const size = 64;
   const backgroundTolerance = 42;
   const catImage = new Image();
-  let activeHex = null;
+  let backgroundHexes = [];
   let renderedHref = defaultHref;
   let isCatImageLoaded = false;
 
@@ -19,27 +19,29 @@ export function createCatFaviconController(linkSelector = "#dynamic-favicon") {
   });
   catImage.src = catIconHref;
 
-  function setActiveColour(hex) {
-    activeHex = hex;
+  function setBackgroundColours(hexes) {
+    backgroundHexes = hexes;
     syncFavicon();
   }
 
-  function clearActiveColour() {
-    activeHex = null;
+  function clearBackgroundColours() {
+    backgroundHexes = [];
     syncFavicon();
   }
 
   function syncFavicon() {
-    if (activeHex) {
-      renderWeatherCatFavicon(activeHex);
+    if (backgroundHexes.length > 0) {
+      renderWeatherCatFavicon(backgroundHexes);
       return;
     }
 
     renderDefaultFavicon();
   }
 
-  function renderWeatherCatFavicon(hex) {
-    if (!faviconLink || !context || renderedHref === hex) {
+  function renderWeatherCatFavicon(hexes) {
+    const renderedKey = hexes.join("|");
+
+    if (!faviconLink || !context || renderedHref === renderedKey) {
       return;
     }
 
@@ -49,16 +51,16 @@ export function createCatFaviconController(linkSelector = "#dynamic-favicon") {
 
     context.clearRect(0, 0, size, size);
     context.drawImage(catImage, 0, 0, size, size);
-    recolourCatBackground(hex);
+    recolourCatBackground(hexes);
 
     faviconLink.href = canvas.toDataURL("image/png");
-    renderedHref = hex;
+    renderedHref = renderedKey;
   }
 
-  function recolourCatBackground(hex) {
+  function recolourCatBackground(hexes) {
     const imageData = context.getImageData(0, 0, size, size);
     const { data } = imageData;
-    const target = hexToRgb(hex);
+    const gradientColours = hexes.map(hexToRgb);
     const background = sampleBackgroundColour(data);
     const visited = new Uint8Array(size * size);
     const queue = [];
@@ -79,6 +81,7 @@ export function createCatFaviconController(linkSelector = "#dynamic-favicon") {
       const dataIndex = pixelIndex * 4;
       const x = pixelIndex % size;
       const y = Math.floor(pixelIndex / size);
+      const target = getGradientColour(gradientColours, y);
 
       data[dataIndex] = target.red;
       data[dataIndex + 1] = target.green;
@@ -99,6 +102,30 @@ export function createCatFaviconController(linkSelector = "#dynamic-favicon") {
     }
 
     context.putImageData(imageData, 0, 0);
+  }
+
+  function getGradientColour(colours, y) {
+    if (colours.length === 1) {
+      return colours[0];
+    }
+
+    const invertedPosition = 1 - y / (size - 1);
+    const scaledPosition = invertedPosition * (colours.length - 1);
+    const lowerIndex = Math.floor(scaledPosition);
+    const upperIndex = Math.min(lowerIndex + 1, colours.length - 1);
+    const mix = scaledPosition - lowerIndex;
+    const lowerColour = colours[lowerIndex];
+    const upperColour = colours[upperIndex];
+
+    return {
+      red: interpolateChannel(lowerColour.red, upperColour.red, mix),
+      green: interpolateChannel(lowerColour.green, upperColour.green, mix),
+      blue: interpolateChannel(lowerColour.blue, upperColour.blue, mix),
+    };
+  }
+
+  function interpolateChannel(start, end, mix) {
+    return Math.round(start + (end - start) * mix);
   }
 
   function queueBackgroundPixel(queue, visited, data, background, x, y) {
@@ -161,7 +188,7 @@ export function createCatFaviconController(linkSelector = "#dynamic-favicon") {
   }
 
   return {
-    clearActiveColour,
-    setActiveColour,
+    clearBackgroundColours,
+    setBackgroundColours,
   };
 }
