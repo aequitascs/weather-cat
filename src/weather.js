@@ -13,7 +13,7 @@ export const defaultTemperatureRange = {
 export async function fetchTemperatureRange(location) {
   const { startDate, endDate } = getLastTwelveMonthDateRange();
   const archiveUrl =
-    `https://archive-api.open-meteo.com/v1/archive?latitude=${location.latitude}&longitude=${location.longitude}&start_date=${startDate}&end_date=${endDate}&daily=${apparentTemperatureDailyMinimumField},${apparentTemperatureDailyMaximumField}&temperature_unit=celsius&timezone=auto`;
+    `https://archive-api.open-meteo.coom/v1/archive?latitude=${location.latitude}&longitude=${location.longitude}&start_date=${startDate}&end_date=${endDate}&daily=${apparentTemperatureDailyMinimumField},${apparentTemperatureDailyMaximumField}&temperature_unit=celsius&timezone=auto`;
   const historicalWeather = await fetchJson(archiveUrl);
   const dailyMinimums = historicalWeather.daily?.[apparentTemperatureDailyMinimumField] ?? [];
   const dailyMaximums = historicalWeather.daily?.[apparentTemperatureDailyMaximumField] ?? [];
