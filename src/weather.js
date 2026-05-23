@@ -2,6 +2,12 @@ const outlierStandardDeviationLimit = 2;
 const apparentTemperatureHourlyField = "apparent_temperature";
 const apparentTemperatureDailyMinimumField = "apparent_temperature_min";
 const apparentTemperatureDailyMaximumField = "apparent_temperature_max";
+const temperatureRangeCacheKey = "weatherCat.temperatureRange";
+
+export const defaultTemperatureRange = {
+  minimum: 0,
+  maximum: 40,
+};
 
 export async function fetchTemperatureRange(location) {
   const { startDate, endDate } = getLastTwelveMonthDateRange();
@@ -23,15 +29,37 @@ export async function fetchTemperatureRange(location) {
   const filteredMinimums = removeStatisticalOutliers(validMinimums);
   const filteredMaximums = removeStatisticalOutliers(validMaximums);
 
-  return {
+  const temperatureRange = {
     minimum: Math.min(...filteredMinimums),
     maximum: Math.max(...filteredMaximums),
   };
+
+  cacheTemperatureRange(temperatureRange);
+  return temperatureRange;
 }
 
 export async function fetchForecastPredictions(location, hourOffsets) {
   const forecast = await fetchJson(getHourlyForecastUrl(location));
   return getForecastPredictions(forecast, hourOffsets);
+}
+
+export function getCachedTemperatureRange() {
+  try {
+    const cachedTemperatureRange = readCachedTemperatureRange();
+
+    if (isTemperatureRange(cachedTemperatureRange)) {
+      return {
+        minimum: cachedTemperatureRange.minimum,
+        maximum: cachedTemperatureRange.maximum,
+      };
+    }
+  } catch {
+    try {
+      localStorage.removeItem(temperatureRangeCacheKey);
+    } catch {}
+  }
+
+  return null;
 }
 
 export function clampTemperatureToScale(temperature, scaleMinimum, scaleMaximum) {
@@ -49,6 +77,26 @@ export async function fetchJson(url, serviceName = "Open-Meteo") {
 
 function getHourlyForecastUrl(location) {
   return `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&hourly=${apparentTemperatureHourlyField},precipitation_probability&forecast_hours=6&temperature_unit=celsius&timezone=auto`;
+}
+
+function cacheTemperatureRange(temperatureRange) {
+  if (!isTemperatureRange(temperatureRange)) {
+    return;
+  }
+
+  try {
+    localStorage.setItem(
+      temperatureRangeCacheKey,
+      JSON.stringify({
+        minimum: temperatureRange.minimum,
+        maximum: temperatureRange.maximum,
+      }),
+    );
+  } catch {}
+}
+
+function readCachedTemperatureRange() {
+  return JSON.parse(localStorage.getItem(temperatureRangeCacheKey) ?? "null");
 }
 
 function getForecastPredictions(forecast, hourOffsets) {
@@ -148,4 +196,12 @@ function removeStatisticalOutliers(values) {
 
 function isNumber(value) {
   return typeof value === "number";
+}
+
+function isTemperatureRange(temperatureRange) {
+  return (
+    Number.isFinite(temperatureRange?.minimum) &&
+    Number.isFinite(temperatureRange?.maximum) &&
+    temperatureRange.minimum < temperatureRange.maximum
+  );
 }

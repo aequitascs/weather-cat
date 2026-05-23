@@ -24,8 +24,10 @@ import {
 import { createWeatherScene } from "./scene.js";
 import {
   clampTemperatureToScale,
+  defaultTemperatureRange,
   fetchForecastPredictions,
   fetchTemperatureRange,
+  getCachedTemperatureRange,
 } from "./weather.js";
 
 const canvas = document.querySelector("#glow-scene");
@@ -52,8 +54,8 @@ const offGlowState = {
 };
 const offGlowHex = `#${new THREE.Color(offSphereColour).getHexString()}`;
 const weatherState = {
-  scaleMinimum: 0,
-  scaleMaximum: 40,
+  scaleMinimum: defaultTemperatureRange.minimum,
+  scaleMaximum: defaultTemperatureRange.maximum,
   expectedTemperature: 20,
   rainProbability: null,
   currentLocation: null,
@@ -97,7 +99,7 @@ async function initializeWeather() {
     weatherState.nextForecastUpdateAt = Date.now() + forecastRefreshIntervalMs;
     updateRefreshCountdown();
     updatePanelLocationMessage(getLocationErrorMessage(error));
-    console.warn("Could not load local temperature scale from Open-Meteo.", error);
+    console.warn("Could not load local temperature forecast from Open-Meteo.", error);
   } finally {
     scheduleForecastRefresh();
   }
@@ -118,12 +120,33 @@ async function refreshWeatherForLocation(refreshedLocation) {
   updatePanelLocation(weatherState.currentLocation);
 
   if (locationChanged) {
-    const historicalRange = await fetchTemperatureRange(weatherState.currentLocation);
-    weatherState.scaleMinimum = historicalRange.minimum;
-    weatherState.scaleMaximum = historicalRange.maximum;
+    await refreshTemperatureRange(weatherState.currentLocation);
   }
 
   await refreshForecast(weatherState.currentLocation);
+}
+
+async function refreshTemperatureRange(location) {
+  try {
+    const historicalRange = await fetchTemperatureRange(location);
+    applyTemperatureRange(historicalRange);
+    return;
+  } catch (error) {
+    console.warn("Could not load local temperature scale from Open-Meteo.", error);
+  }
+
+  const cachedTemperatureRange = getCachedTemperatureRange();
+  if (cachedTemperatureRange) {
+    applyTemperatureRange(cachedTemperatureRange);
+    return;
+  }
+
+  applyTemperatureRange(defaultTemperatureRange);
+}
+
+function applyTemperatureRange(temperatureRange) {
+  weatherState.scaleMinimum = temperatureRange.minimum;
+  weatherState.scaleMaximum = temperatureRange.maximum;
 }
 
 async function refreshForecast(location) {
