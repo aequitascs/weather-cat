@@ -2,6 +2,7 @@ const outlierStandardDeviationLimit = 2;
 const apparentTemperatureHourlyField = "apparent_temperature";
 const apparentTemperatureDailyMinimumField = "apparent_temperature_min";
 const apparentTemperatureDailyMaximumField = "apparent_temperature_max";
+const temperatureRangeCacheDurationMs = 60 * 60 * 1000;
 const temperatureRangeCacheKey = "weatherCat.temperatureRange";
 
 export const defaultTemperatureRange = {
@@ -47,7 +48,11 @@ export function getCachedTemperatureRange() {
   try {
     const cachedTemperatureRange = readCachedTemperatureRange();
 
-    if (isTemperatureRange(cachedTemperatureRange)) {
+    if (
+      isTemperatureRange(cachedTemperatureRange) &&
+      Number.isFinite(cachedTemperatureRange.cachedAt) &&
+      Date.now() - cachedTemperatureRange.cachedAt < temperatureRangeCacheDurationMs
+    ) {
       return {
         minimum: cachedTemperatureRange.minimum,
         maximum: cachedTemperatureRange.maximum,
@@ -90,6 +95,7 @@ function cacheTemperatureRange(temperatureRange) {
       JSON.stringify({
         minimum: temperatureRange.minimum,
         maximum: temperatureRange.maximum,
+        cachedAt: Date.now(),
       }),
     );
   } catch {}

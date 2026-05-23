@@ -59,6 +59,7 @@ const weatherState = {
   expectedTemperature: 20,
   rainProbability: null,
   currentLocation: null,
+  temperatureRangeSource: "default",
   nextForecastUpdateAt: null,
 };
 let forecastRefreshTimer = null;
@@ -119,7 +120,7 @@ async function refreshWeatherForLocation(refreshedLocation) {
   weatherState.currentLocation = refreshedLocation;
   updatePanelLocation(weatherState.currentLocation);
 
-  if (locationChanged) {
+  if (locationChanged || weatherState.temperatureRangeSource === "default") {
     await refreshTemperatureRange(weatherState.currentLocation);
   }
 
@@ -129,7 +130,7 @@ async function refreshWeatherForLocation(refreshedLocation) {
 async function refreshTemperatureRange(location) {
   try {
     const historicalRange = await fetchTemperatureRange(location);
-    applyTemperatureRange(historicalRange);
+    applyTemperatureRange(historicalRange, "archive");
     return;
   } catch (error) {
     console.warn("Could not load local temperature scale from Open-Meteo.", error);
@@ -137,16 +138,17 @@ async function refreshTemperatureRange(location) {
 
   const cachedTemperatureRange = getCachedTemperatureRange();
   if (cachedTemperatureRange) {
-    applyTemperatureRange(cachedTemperatureRange);
+    applyTemperatureRange(cachedTemperatureRange, "cache");
     return;
   }
 
-  applyTemperatureRange(defaultTemperatureRange);
+  applyTemperatureRange(defaultTemperatureRange, "default");
 }
 
-function applyTemperatureRange(temperatureRange) {
+function applyTemperatureRange(temperatureRange, source) {
   weatherState.scaleMinimum = temperatureRange.minimum;
   weatherState.scaleMaximum = temperatureRange.maximum;
+  weatherState.temperatureRangeSource = source;
 }
 
 async function refreshForecast(location) {
