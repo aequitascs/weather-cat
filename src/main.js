@@ -7,6 +7,7 @@ import {
   updatePanelLocationMessage,
   updatePanelNextRefresh,
 } from "./debug-panel.js";
+import { createColourMapController } from "./colour-map.js";
 import { createCatFaviconController } from "./favicon.js";
 import { createForecastCycle } from "./forecast-cycle.js";
 import {
@@ -30,6 +31,9 @@ import {
 } from "./weather.js";
 
 const canvas = document.querySelector("#glow-scene");
+const colourMapOverlay = document.querySelector("#colour-map-overlay");
+const showColourMapControl = document.querySelector("#show-colour-map-control");
+const hideColourMapControl = document.querySelector("#hide-colour-map-control");
 
 const forecastRefreshIntervalMs = 5 * 60 * 1000;
 const initialBrowserLocationTimeoutMs = 10000;
@@ -71,9 +75,18 @@ const forecastCycle = createForecastCycle({
   onPrediction: applyForecastPrediction,
 });
 const catFavicon = createCatFaviconController();
+const colourMap = createColourMapController({
+  colourMap: document.querySelector("#colour-map"),
+  scaleMin: document.querySelector("#colour-scale-min"),
+  scaleMid: document.querySelector("#colour-scale-mid"),
+  scaleMax: document.querySelector("#colour-scale-max"),
+});
 
 window.addEventListener("resize", weatherScene.resize);
+showColourMapControl.addEventListener("click", showColourMap);
+hideColourMapControl.addEventListener("click", hideColourMap);
 initializeOffGlowState();
+colourMap.initialize();
 initializeWeather();
 setInterval(updateRefreshCountdown, 1000);
 
@@ -293,6 +306,15 @@ function scheduleForecastRefresh() {
 
 function updateRefreshCountdown() {
   updatePanelNextRefresh(weatherState.nextForecastUpdateAt);
+}
+
+function showColourMap() {
+  colourMapOverlay.hidden = false;
+  colourMap.updateScaleOnce();
+}
+
+function hideColourMap() {
+  colourMapOverlay.hidden = true;
 }
 
 function formatTemperature(temperature) {

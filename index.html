@@ -47,7 +47,7 @@
         </p>
         <p id="location-value" class="location-value">Locating...</p>
         <div class="panel-links">
-          <a class="page-link" href="./colour.html">Colour</a>
+          <button id="show-colour-map-control" class="page-link link-button" type="button">Colour</button>
           <button id="hide-panel-control" class="page-link link-button" type="button">Hide</button>
         </div>
       </section>
@@ -55,6 +55,40 @@
       <button id="show-panel-control" class="page-link link-button unhide-control" type="button" hidden>
         Show info
       </button>
+
+      <section class="colour-overlay" id="colour-map-overlay" aria-labelledby="colour-title" hidden>
+        <div class="colour-panel">
+          <div class="header-row">
+            <h1 id="colour-title">Colour map</h1>
+          </div>
+
+          <div class="colour-map-wrap">
+            <div class="colour-y-axis-label" aria-hidden="true">Chance of rain</div>
+            <div class="colour-y-axis" aria-hidden="true">
+              <span>100%</span>
+              <span>50%</span>
+              <span>0%</span>
+            </div>
+            <div class="colour-chart">
+              <canvas
+                class="colour-map"
+                id="colour-map"
+                width="401"
+                height="401"
+                role="img"
+                aria-label="Calculated colour map"
+              ></canvas>
+              <div class="colour-x-axis" aria-hidden="true">
+                <span id="colour-scale-min">--</span>
+                <span id="colour-scale-mid">--</span>
+                <span id="colour-scale-max">--</span>
+              </div>
+              <div class="colour-x-axis-label" aria-hidden="true">Apparent temperature</div>
+            </div>
+          </div>
+        </div>
+        <button id="hide-colour-map-control" class="page-link link-button corner-link" type="button">Home</button>
+      </section>
     </main>
 
     <script type="module" src="./src/main.js"></script>
