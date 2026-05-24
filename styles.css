@@ -280,3 +280,9 @@ body {
     max-height: 520px;
   }
 }
+
+@media (orientation: landscape) and (max-height: 820px) {
+  .colour-map-wrap {
+    --colour-map-size: min(76vw, calc(100vh - 300px), 520px);
+  }
+}
