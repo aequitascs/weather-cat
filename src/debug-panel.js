@@ -2,9 +2,12 @@ const locationSourceLabels = {
   browser: "Browser",
   ip: "Approximate",
 };
+const panelVisibilityCacheKey = "weatherCat.informationPanelVisible";
 
 const elements = {
   controls: document.querySelector(".controls"),
+  hideControl: document.querySelector("#hide-panel-control"),
+  showControl: document.querySelector("#show-panel-control"),
   hex: document.querySelector("#hex-value"),
   scaleMin: document.querySelector("#scale-min-value"),
   scaleMax: document.querySelector("#scale-max-value"),
@@ -15,8 +18,12 @@ const elements = {
   location: document.querySelector("#location-value"),
 };
 
-export function setDebugPanelVisible(isVisible) {
+initializePanelVisibility();
+
+export function setInformationPanelVisible(isVisible) {
   elements.controls.hidden = !isVisible;
+  elements.showControl.hidden = isVisible;
+  storePanelVisibility(isVisible);
 }
 
 export function updatePanelGlow({ hex, scaleMinimum, scaleMaximum, expectedTemperature, rainProbability }) {
@@ -77,4 +84,25 @@ function formatLocation(location) {
   const longitudeDirection = location.longitude >= 0 ? "E" : "W";
   const sourceLabel = locationSourceLabels[location.source] ?? "Location";
   return `${sourceLabel}: ${Math.abs(location.latitude).toFixed(4)}°${latitudeDirection}, ${Math.abs(location.longitude).toFixed(4)}°${longitudeDirection}`;
+}
+
+function initializePanelVisibility() {
+  setInformationPanelVisible(getCachedPanelVisibility());
+  elements.hideControl.addEventListener("click", () => setInformationPanelVisible(false));
+  elements.showControl.addEventListener("click", () => setInformationPanelVisible(true));
+}
+
+function getCachedPanelVisibility() {
+  try {
+    const cachedVisibility = localStorage.getItem(panelVisibilityCacheKey);
+    return cachedVisibility === null ? true : cachedVisibility === "true";
+  } catch {
+    return true;
+  }
+}
+
+function storePanelVisibility(isVisible) {
+  try {
+    localStorage.setItem(panelVisibilityCacheKey, String(isVisible));
+  } catch {}
 }

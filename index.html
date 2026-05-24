@@ -46,8 +46,15 @@
           Scale <span id="scale-min-value">--</span>-<span id="scale-max-value">--</span>
         </p>
         <p id="location-value" class="location-value">Locating...</p>
-        <a class="page-link" href="./colour.html">Colour</a>
+        <div class="panel-links">
+          <a class="page-link" href="./colour.html">Colour</a>
+          <button id="hide-panel-control" class="page-link link-button" type="button">Hide</button>
+        </div>
       </section>
+
+      <button id="show-panel-control" class="page-link link-button unhide-control" type="button" hidden>
+        Show info
+      </button>
     </main>
 
     <script type="module" src="./src/main.js"></script>

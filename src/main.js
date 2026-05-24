@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import {
   resetPanelGlow,
-  setDebugPanelVisible,
   updatePanelForecastTime,
   updatePanelGlow,
   updatePanelLocation,
@@ -31,8 +30,6 @@ import {
 } from "./weather.js";
 
 const canvas = document.querySelector("#glow-scene");
-const isDebugMode = new URLSearchParams(window.location.search).get("mode") === "debug";
-setDebugPanelVisible(isDebugMode);
 
 const forecastRefreshIntervalMs = 5 * 60 * 1000;
 const initialBrowserLocationTimeoutMs = 10000;
@@ -78,9 +75,7 @@ const catFavicon = createCatFaviconController();
 window.addEventListener("resize", weatherScene.resize);
 initializeOffGlowState();
 initializeWeather();
-if (isDebugMode) {
-  setInterval(updateRefreshCountdown, 1000);
-}
+setInterval(updateRefreshCountdown, 1000);
 
 function initializeOffGlowState() {
   weatherScene.applyGlowState(offGlowState);
