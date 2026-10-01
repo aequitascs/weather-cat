@@ -29,6 +29,7 @@ import {
   fetchTemperatureRange,
   getCachedTemperatureRange,
 } from "./weather.js";
+import { createYeelightController } from "./yeelight.js";
 
 const canvas = document.querySelector("#glow-scene");
 
@@ -72,10 +73,17 @@ const forecastCycle = createForecastCycle({
   onPrediction: applyForecastPrediction,
 });
 const catFavicon = createCatFaviconController();
+const yeelightControl = document.querySelector("#yeelight-control");
+const yeelightStatus = document.querySelector("#yeelight-status");
+const yeelight = createYeelightController({
+  onStatusChange: updateYeelightStatus,
+});
 
 window.addEventListener("resize", weatherScene.resize);
+yeelightControl.addEventListener("click", yeelight.togglePairing);
 initializeOffGlowState();
 initializeColourOverlay();
+yeelight.initialize();
 initializeWeather();
 setInterval(updateRefreshCountdown, 1000);
 
@@ -200,6 +208,7 @@ function updateGlowColour() {
     rainProbability: weatherState.rainProbability,
   });
   document.documentElement.style.setProperty("--accent", hex);
+  yeelight.mirrorColour(hex);
 }
 
 function getWeatherGlowState() {
@@ -264,6 +273,7 @@ function deactivateForecastGlow({ fade = true } = {}) {
   resetPanelGlow(offGlowHex);
   document.documentElement.style.setProperty("--accent", offGlowHex);
   catFavicon.clearBackgroundColours();
+  yeelight.turnOff();
 
   if (fade) {
     weatherScene.startGlowTransition(offGlowState);
@@ -307,4 +317,11 @@ function formatTemperatureWithUnit(temperature) {
 
 function formatPercent(value) {
   return typeof value === "number" ? `${Math.round(value)}%` : "--";
+}
+
+function updateYeelightStatus({ state, message, pairingEnabled, connected }) {
+  yeelightStatus.dataset.state = state;
+  yeelightStatus.textContent = message;
+  yeelightControl.disabled = !pairingEnabled;
+  yeelightControl.textContent = connected ? "Disconnect" : "Pair";
 }
