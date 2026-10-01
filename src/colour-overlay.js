@@ -9,15 +9,20 @@ export function initializeColourOverlay() {
     scaleMin: document.querySelector("#colour-scale-min"),
     scaleMid: document.querySelector("#colour-scale-mid"),
     scaleMax: document.querySelector("#colour-scale-max"),
+    marker: document.querySelector("#colour-map-marker"),
   });
 
   colourMap.initialize();
 
   showColourMapControl.addEventListener("click", () => {
     colourMapOverlay.hidden = false;
-    colourMap.updateScaleOnce();
   });
   hideColourMapControl.addEventListener("click", () => {
     colourMapOverlay.hidden = true;
   });
+
+  return {
+    updateMarker: colourMap.updateMarker,
+    updateTemperatureRange: colourMap.updateTemperatureRange,
+  };
 }

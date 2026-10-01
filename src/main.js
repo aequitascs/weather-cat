@@ -73,6 +73,7 @@ const forecastCycle = createForecastCycle({
   onPrediction: applyForecastPrediction,
 });
 const catFavicon = createCatFaviconController();
+const colourOverlay = initializeColourOverlay();
 const yeelightControl = document.querySelector("#yeelight-control");
 const yeelightStatus = document.querySelector("#yeelight-status");
 const yeelight = createYeelightController({
@@ -82,7 +83,6 @@ const yeelight = createYeelightController({
 window.addEventListener("resize", weatherScene.resize);
 yeelightControl.addEventListener("click", yeelight.togglePairing);
 initializeOffGlowState();
-initializeColourOverlay();
 yeelight.initialize();
 initializeWeather();
 setInterval(updateRefreshCountdown, 1000);
@@ -154,6 +154,7 @@ function applyTemperatureRange(temperatureRange, source) {
   weatherState.scaleMinimum = temperatureRange.minimum;
   weatherState.scaleMaximum = temperatureRange.maximum;
   weatherState.temperatureRangeSource = source;
+  colourOverlay.updateTemperatureRange(temperatureRange);
 }
 
 async function refreshForecast(location) {
@@ -208,6 +209,10 @@ function updateGlowColour() {
     rainProbability: weatherState.rainProbability,
   });
   document.documentElement.style.setProperty("--accent", hex);
+  colourOverlay.updateMarker({
+    temperature: weatherState.expectedTemperature,
+    rainProbability: weatherState.rainProbability,
+  });
   yeelight.mirrorColour(hex);
 }
 
@@ -273,6 +278,7 @@ function deactivateForecastGlow({ fade = true } = {}) {
   resetPanelGlow(offGlowHex);
   document.documentElement.style.setProperty("--accent", offGlowHex);
   catFavicon.clearBackgroundColours();
+  colourOverlay.updateMarker({ temperature: null, rainProbability: null });
   yeelight.turnOff();
 
   if (fade) {

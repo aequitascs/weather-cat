@@ -1,21 +1,20 @@
 import { getGlowColourChannels, getTemperatureLevel } from "./glow-colour.js";
-import { getCurrentLocation } from "./location.js";
-import { defaultTemperatureRange, fetchTemperatureRange } from "./weather.js";
-
-const browserLocationTimeoutMs = 10000;
+import { defaultTemperatureRange } from "./weather.js";
 
 export function createColourMapController({
   colourMap,
   scaleMin,
   scaleMid,
   scaleMax,
+  marker,
 }) {
   const context = colourMap.getContext("2d");
   const { width, height } = colourMap;
   const image = context.createImageData(width, height);
-  let hasUpdatedScale = false;
+  let currentTemperatureRange = defaultTemperatureRange;
 
   function renderColourMap(temperatureRange) {
+    currentTemperatureRange = temperatureRange;
     const temperatureScaleRange = temperatureRange.maximum - temperatureRange.minimum || 1;
 
     for (let y = 0; y < height; y += 1) {
@@ -53,22 +52,30 @@ export function createColourMapController({
     );
   }
 
-  async function updateColourMapScale() {
-    try {
-      const currentLocation = await getCurrentLocation({
-        browserLocationTimeoutMs,
-        onLocationUpdate: updateColourMapForLocation,
-      });
-      await updateColourMapForLocation(currentLocation);
-    } catch (error) {
-      console.warn("Could not load colour map temperature scale from Open-Meteo.", error);
-    }
-  }
-
-  async function updateColourMapForLocation(location) {
-    const temperatureRange = await fetchTemperatureRange(location);
+  function updateTemperatureRange(temperatureRange) {
     renderColourMap(temperatureRange);
     updateScaleLabels(temperatureRange);
+  }
+
+  function updateMarker({ temperature, rainProbability }) {
+    if (typeof temperature !== "number" || typeof rainProbability !== "number") {
+      marker.hidden = true;
+      return;
+    }
+
+    const temperatureLevel = getTemperatureLevel(
+      temperature,
+      currentTemperatureRange.minimum,
+      currentTemperatureRange.maximum,
+    );
+    const rainLevel = Math.min(Math.max(rainProbability / 100, 0), 1);
+    marker.style.setProperty("--marker-x", `${temperatureLevel * 100}%`);
+    marker.style.setProperty("--marker-y", `${(1 - rainLevel) * 100}%`);
+    marker.setAttribute(
+      "aria-label",
+      `Current forecast: ${formatTemperatureWithUnit(temperature)}, ${Math.round(rainProbability)}% chance of rain`,
+    );
+    marker.hidden = false;
   }
 
   function initialize() {
@@ -76,18 +83,10 @@ export function createColourMapController({
     updateScaleLabels(defaultTemperatureRange);
   }
 
-  function updateScaleOnce() {
-    if (hasUpdatedScale) {
-      return;
-    }
-
-    hasUpdatedScale = true;
-    updateColourMapScale();
-  }
-
   return {
     initialize,
-    updateScaleOnce,
+    updateMarker,
+    updateTemperatureRange,
   };
 }
 
