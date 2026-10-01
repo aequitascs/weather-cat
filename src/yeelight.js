@@ -9,7 +9,7 @@ import {
 } from "./yeelight-protocol.js";
 
 const minimumWriteGapMs = 400;
-const brightness = 25;
+const brightness = 10;
 
 export function createYeelightController({ onStatusChange }) {
   let device = null;
